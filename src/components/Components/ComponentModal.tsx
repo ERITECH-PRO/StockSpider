@@ -11,6 +11,7 @@ interface ComponentModalProps {
 
 const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => {
   const { addComponent, updateComponent, suppliers } = useData();
+  const { showSuccess } = useToast();
   const isEdit = !!component;
 
   const [formData, setFormData] = useState({
@@ -51,9 +52,24 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
     
     if (isEdit && component) {
       updateComponent(component.id, formData);
+      showSuccess('Composant mis à jour', `${formData.designation} a été mis à jour avec succès`);
     } else {
       addComponent(formData);
+      showSuccess('Composant ajouté', `${formData.designation} a été ajouté avec succès`);
     }
+    
+    // Reset form
+    setFormData({
+      designation: '',
+      name: '',
+      productNumber: '',
+      footprint: '',
+      quantity: 0,
+      unitPrice: 0,
+      supplier: '',
+      category: 'autre' as ComponentCategory,
+      minStock: 0,
+    });
     
     onClose();
   };
@@ -65,26 +81,26 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-slide-in">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-white rounded-t-xl">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Package className="w-5 h-5 text-blue-600" />
+            <div className="p-2 bg-3s-blue/10 rounded-lg shadow-3s">
+              <Package className="w-5 h-5 text-3s-blue" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold text-3s-black font-inter">
                 {isEdit ? 'Modifier le composant' : 'Ajouter un composant'}
               </h2>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-3s-gray-medium font-inter">
                 {isEdit ? 'Modifiez les informations du composant' : 'Saisissez les informations du nouveau composant'}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200"
           >
             <X className="w-5 h-5" />
           </button>
@@ -94,7 +110,7 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-3s-black mb-2 font-inter">
                 Désignation *
               </label>
               <input
@@ -102,13 +118,13 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
                 required
                 value={formData.designation}
                 onChange={(e) => handleChange('designation', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter transition-all duration-200 hover:shadow-card-hover"
                 placeholder="Ex: Résistance 10kΩ"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-3s-black mb-2 font-inter">
                 Nom *
               </label>
               <input
@@ -116,13 +132,13 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
                 required
                 value={formData.name}
                 onChange={(e) => handleChange('name', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter transition-all duration-200 hover:shadow-card-hover"
                 placeholder="Ex: R10K"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-3s-black mb-2 font-inter">
                 N° produit *
               </label>
               <input
@@ -130,13 +146,13 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
                 required
                 value={formData.productNumber}
                 onChange={(e) => handleChange('productNumber', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter transition-all duration-200 hover:shadow-card-hover"
                 placeholder="Ex: R10K-0603"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-3s-black mb-2 font-inter">
                 Footprint *
               </label>
               <input
@@ -144,13 +160,13 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
                 required
                 value={formData.footprint}
                 onChange={(e) => handleChange('footprint', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter transition-all duration-200 hover:shadow-card-hover"
                 placeholder="Ex: 0603"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-3s-black mb-2 font-inter">
                 Quantité en stock *
               </label>
               <input
@@ -159,12 +175,12 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
                 min="0"
                 value={formData.quantity}
                 onChange={(e) => handleChange('quantity', parseInt(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter transition-all duration-200 hover:shadow-card-hover"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-3s-black mb-2 font-inter">
                 Stock minimum *
               </label>
               <input
@@ -173,12 +189,12 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
                 min="0"
                 value={formData.minStock}
                 onChange={(e) => handleChange('minStock', parseInt(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter transition-all duration-200 hover:shadow-card-hover"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-3s-black mb-2 font-inter">
                 Prix unitaire (€) *
               </label>
               <input
@@ -188,19 +204,19 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
                 step="0.01"
                 value={formData.unitPrice}
                 onChange={(e) => handleChange('unitPrice', parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter transition-all duration-200 hover:shadow-card-hover"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-3s-black mb-2 font-inter">
                 Catégorie *
               </label>
               <select
                 required
                 value={formData.category}
                 onChange={(e) => handleChange('category', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter transition-all duration-200 hover:shadow-card-hover"
               >
                 {categories.map(category => (
                   <option key={category} value={category}>
@@ -212,14 +228,14 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-3s-black mb-2 font-inter">
               Fournisseur
             </label>
             <input
               type="text"
               value={formData.supplier}
               onChange={(e) => handleChange('supplier', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter transition-all duration-200 hover:shadow-card-hover"
               placeholder="Ex: Farnell, Mouser..."
             />
           </div>
@@ -229,13 +245,13 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              className="btn-3s-secondary"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              className="btn-3s-primary"
             >
               {isEdit ? 'Mettre à jour' : 'Ajouter'}
             </button>

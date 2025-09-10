@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Package, Wrench, TrendingUp, DollarSign, Truck, Users, Settings } from 'lucide-react';
 import { AuthProvider, useAuth } from './hooks/useAuth.tsx';
+import { ToastProvider } from './hooks/useToast';
 import { useData } from './hooks/useData';
 import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
@@ -210,9 +211,11 @@ const AppContent = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 

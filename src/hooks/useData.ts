@@ -173,6 +173,29 @@ export const useData = () => {
     setMovements(prev => [movement, ...prev]);
   };
 
+  const assembleProduct = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return false;
+
+    // Vérifier si l'assemblage est possible
+    const canAssemble = product.components.every(pc => {
+      const component = components.find(c => c.id === pc.componentId);
+      return component && component.quantity >= pc.quantity;
+    });
+
+    if (!canAssemble) return false;
+
+    // Décrémenter le stock des composants
+    product.components.forEach(pc => {
+      updateStock(pc.componentId, pc.quantity, 'out', `Assemblage produit: ${product.name}`);
+    });
+
+    // Incrémenter le stock du produit
+    updateProduct(productId, { quantity: product.quantity + 1 });
+
+    return true;
+  };
+
   const getDashboardStats = (): DashboardStats => {
     const lowStockComponents = components.filter(c => c.quantity <= c.minStock);
     const totalValue = components.reduce((sum, c) => sum + (c.quantity * c.unitPrice), 0);
@@ -203,6 +226,7 @@ export const useData = () => {
     updateProduct,
     addSupplier,
     updateStock,
+    assembleProduct,
     getDashboardStats,
     getLowStockComponents,
   };

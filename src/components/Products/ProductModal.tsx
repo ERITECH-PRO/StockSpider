@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { X, Box, Plus, Trash2 } from 'lucide-react';
+import { X, Box, Plus, Trash2, Upload } from 'lucide-react';
 import { Product, ProductComponent } from '../../types';
 import { useData } from '../../hooks/useData';
+import BOMImport from './BOMImport';
+import { BOMItem } from '../../utils/bomParser';
+import { useToast } from '../../hooks/useToast';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -10,8 +13,10 @@ interface ProductModalProps {
 }
 
 const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
-  const { addProduct, updateProduct, components } = useData();
+  const { addProduct, updateProduct, components, addComponent } = useData();
+  const { showSuccess, showInfo } = useToast();
   const isEdit = !!product;
+  const [showBOMImport, setShowBOMImport] = useState(false);
 
   const [formData, setFormData] = useState({
     name: product?.name || '',
@@ -32,6 +37,72 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
     }
     
     onClose();
+  };
+
+  const handleBOMImport = (bomItems: BOMItem[]) => {
+    let newComponentsCount = 0;
+    let existingComponentsCount = 0;
+    const productComponents: ProductComponent[] = [];
+
+    bomItems.forEach(bomItem => {
+      // Vérifier si le composant existe déjà
+      let existingComponent = components.find(c => 
+        c.productNumber === bomItem.productNumber || 
+        c.designation === bomItem.designation
+      );
+
+      if (!existingComponent) {
+        // Créer un nouveau composant
+        const newComponent = {
+          designation: bomItem.designation,
+          name: bomItem.name,
+          productNumber: bomItem.productNumber,
+          footprint: bomItem.footprint,
+          quantity: 0, // Stock initial à 0 pour les composants importés
+          unitPrice: bomItem.unitPrice,
+          supplier: bomItem.supplier || '',
+          category: bomItem.category,
+          minStock: Math.ceil(bomItem.quantity * 0.2), // 20% de la quantité requise comme stock minimum
+        };
+        
+        addComponent(newComponent);
+        newComponentsCount++;
+        
+        // Simuler l'ID du nouveau composant (dans une vraie app, on récupérerait l'ID retourné)
+        const componentId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
+        productComponents.push({
+          componentId,
+          quantity: bomItem.quantity
+        });
+      } else {
+        existingComponentsCount++;
+        productComponents.push({
+          componentId: existingComponent.id,
+          quantity: bomItem.quantity
+        });
+      }
+    });
+
+    // Mettre à jour les composants du produit
+    setFormData(prev => ({
+      ...prev,
+      components: [...prev.components, ...productComponents]
+    }));
+
+    // Afficher un résumé
+    if (newComponentsCount > 0) {
+      showSuccess(
+        'BOM importée avec succès',
+        `${newComponentsCount} nouveaux composants créés, ${existingComponentsCount} existants utilisés`
+      );
+    } else {
+      showInfo(
+        'BOM importée',
+        `${existingComponentsCount} composants existants ajoutés au produit`
+      );
+    }
+
+    setShowBOMImport(false);
   };
 
   const handleChange = (field: string, value: any) => {
@@ -157,14 +228,24 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900">Composants</h3>
-              <button
-                type="button"
-                onClick={addComponent}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm"
-              >
-                <Plus className="w-4 h-4" />
-                Ajouter composant
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBOMImport(true)}
+                  className="bg-3s-blue hover:bg-3s-blue-dark text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span className="font-inter">Importer BOM</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={addComponent}
+                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="font-inter">Ajouter manuellement</span>
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -219,8 +300,9 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
 
               {formData.components.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
-                  <p>Aucun composant ajouté</p>
-                  <p className="text-sm">Cliquez sur "Ajouter composant" pour commencer</p>
+                  <Upload className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="font-inter">Aucun composant ajouté</p>
+                  <p className="text-sm font-inter">Importez une BOM ou ajoutez des composants manuellement</p>
                 </div>
               )}
             </div>
@@ -283,6 +365,13 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
             </button>
           </div>
         </form>
+
+        {/* BOM Import Modal */}
+        <BOMImport
+          isOpen={showBOMImport}
+          onClose={() => setShowBOMImport(false)}
+          onImport={handleBOMImport}
+        />
       </div>
     </div>
   );
