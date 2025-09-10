@@ -205,9 +205,11 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
                       }`}>
                         {component.quantity}
                       </span>
-                      {component.quantity <= component.minStock && (
-                        <AlertTriangle className="w-4 h-4 text-3s-red" />
-                      )}
+                      <>
+                        {component.quantity <= component.minStock && (
+                          <AlertTriangle className="w-4 h-4 text-3s-red" />
+                        )}
+                      </>
                     </div>
                   </div>
                   

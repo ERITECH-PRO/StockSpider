@@ -109,7 +109,7 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const addComponent = () => {
+  const handleAddComponent = () => {
     const newComponent: ProductComponent = {
       componentId: '',
       quantity: 1
@@ -239,7 +239,7 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
                 </button>
                 <button
                   type="button"
-                  onClick={addComponent}
+                  onClick={handleAddComponent}
                   className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors"
                 >
                   <Plus className="w-4 h-4" />
