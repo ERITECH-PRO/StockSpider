@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Package } from 'lucide-react';
 import { Component, ComponentCategory } from '../../types';
 import { useData } from '../../hooks/useData';
+import { useToast } from '../../hooks/useToast';
 
 interface ComponentModalProps {
   isOpen: boolean;
