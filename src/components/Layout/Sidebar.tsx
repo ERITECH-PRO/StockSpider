@@ -147,25 +147,3 @@ const Sidebar = ({ currentPage, onPageChange, lowStockCount, isCollapsed, onTogg
 };
 
 export default Sidebar;
-            <span className="text-white text-sm font-medium">
-              {user?.name.charAt(0)}
-            </span>
-          </div>
-          <div>
-            <p className="text-white text-sm font-medium">{user?.name}</p>
-            <p className="text-slate-400 text-xs capitalize">{user?.role}</p>
-          </div>
-        </div>
-        <button
-          onClick={logout}
-          className="w-full flex items-center gap-3 px-4 py-2 text-slate-300 hover:bg-slate-700 rounded-lg transition-colors"
-        >
-          <LogOut className="w-4 h-4" />
-          <span>Déconnexion</span>
-        </button>
-      </div>
-    </div>
-  );
-};
-
-export default Sidebar;
