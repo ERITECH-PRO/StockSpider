@@ -10,7 +10,9 @@ import {
   Users, 
   Settings,
   LogOut,
-  AlertCircle
+  AlertCircle,
+  Menu,
+  X
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -18,9 +20,11 @@ interface SidebarProps {
   currentPage: string;
   onPageChange: (page: string) => void;
   lowStockCount: number;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
-const Sidebar = ({ currentPage, onPageChange, lowStockCount }: SidebarProps) => {
+const Sidebar = ({ currentPage, onPageChange, lowStockCount, isCollapsed, onToggleCollapse }: SidebarProps) => {
   const { user, logout } = useAuth();
 
   const menuItems = [
@@ -36,21 +40,41 @@ const Sidebar = ({ currentPage, onPageChange, lowStockCount }: SidebarProps) => 
   ];
 
   return (
-    <div className="bg-slate-800 text-white w-64 min-h-screen flex flex-col">
-      <div className="p-6 border-b border-slate-700">
-        <h1 className="text-2xl font-bold text-blue-400">StockSpider</h1>
-        <p className="text-slate-400 text-sm mt-1">Gestion de stock</p>
+    <div className={`bg-3s-black text-white min-h-screen flex flex-col transition-all duration-300 animate-slide-in ${
+      isCollapsed ? 'w-16' : 'w-64'
+    }`}>
+      <div className="p-4 border-b border-gray-700">
+        <div className="flex items-center justify-between">
+          {!isCollapsed && (
+            <div className="animate-fade-in">
+              <h1 className="text-2xl font-bold text-3s-blue font-inter">StockSpider</h1>
+              <p className="text-gray-400 text-sm mt-1 font-inter">Gestion de stock 3S IT</p>
+            </div>
+          )}
+          <button
+            onClick={onToggleCollapse}
+            className="p-2 hover:bg-gray-700 rounded-lg transition-colors duration-200"
+          >
+            {isCollapsed ? <Menu className="w-5 h-5" /> : <X className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
-      {lowStockCount > 0 && (
-        <div className="mx-4 my-4 p-3 bg-red-900/50 border border-red-500 rounded-lg">
+      {lowStockCount > 0 && !isCollapsed && (
+        <div className="mx-4 my-4 p-3 bg-3s-red/20 border border-3s-red rounded-lg animate-bounce-subtle">
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-red-400" />
+            <AlertCircle className="w-5 h-5 text-3s-red" />
             <div>
-              <p className="text-red-200 text-sm font-medium">Stock critique</p>
-              <p className="text-red-300 text-xs">{lowStockCount} composant{lowStockCount > 1 ? 's' : ''} en rupture</p>
+              <p className="text-3s-red text-sm font-medium font-inter">Stock critique</p>
+              <p className="text-red-300 text-xs font-inter">{lowStockCount} composant{lowStockCount > 1 ? 's' : ''} en rupture</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {lowStockCount > 0 && isCollapsed && (
+        <div className="mx-2 my-2 p-2 bg-3s-red/20 border border-3s-red rounded-lg animate-bounce-subtle">
+          <AlertCircle className="w-5 h-5 text-3s-red mx-auto" />
         </div>
       )}
 
@@ -64,14 +88,15 @@ const Sidebar = ({ currentPage, onPageChange, lowStockCount }: SidebarProps) => 
               <li key={item.id}>
                 <button
                   onClick={() => onPageChange(item.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                  className={`w-full sidebar-item ${
                     isActive 
-                      ? 'bg-blue-600 text-white' 
-                      : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                      ? 'sidebar-item-active' 
+                      : 'sidebar-item-inactive'
                   }`}
+                  title={isCollapsed ? item.label : undefined}
                 >
                   <Icon className="w-5 h-5" />
-                  <span>{item.label}</span>
+                  {!isCollapsed && <span className="font-inter">{item.label}</span>}
                 </button>
               </li>
             );
@@ -79,24 +104,29 @@ const Sidebar = ({ currentPage, onPageChange, lowStockCount }: SidebarProps) => 
         </ul>
       </nav>
 
-      <div className="p-4 border-t border-slate-700">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+      <div className="p-4 border-t border-gray-700">
+        <div className={`flex items-center gap-3 mb-3 ${isCollapsed ? 'justify-center' : ''}`}>
+          <div className="w-8 h-8 bg-3s-blue rounded-full flex items-center justify-center shadow-3s">
             <span className="text-white text-sm font-medium">
               {user?.name.charAt(0)}
             </span>
           </div>
-          <div>
-            <p className="text-white text-sm font-medium">{user?.name}</p>
-            <p className="text-slate-400 text-xs capitalize">{user?.role}</p>
-          </div>
+          {!isCollapsed && (
+            <div>
+              <p className="text-white text-sm font-medium font-inter">{user?.name}</p>
+              <p className="text-gray-400 text-xs capitalize font-inter">{user?.role}</p>
+            </div>
+          )}
         </div>
         <button
           onClick={logout}
-          className="w-full flex items-center gap-3 px-4 py-2 text-slate-300 hover:bg-slate-700 rounded-lg transition-colors"
+          className={`w-full flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors duration-200 ${
+            isCollapsed ? 'justify-center' : ''
+          }`}
+          title={isCollapsed ? 'Déconnexion' : undefined}
         >
           <LogOut className="w-4 h-4" />
-          <span>Déconnexion</span>
+          {!isCollapsed && <span className="font-inter">Déconnexion</span>}
         </button>
       </div>
     </div>

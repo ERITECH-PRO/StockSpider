@@ -16,6 +16,7 @@ const AppContent = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showComponentModal, setShowComponentModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const lowStockCount = getLowStockComponents().length;
 
@@ -64,55 +65,79 @@ const AppContent = () => {
         return <ProductList searchQuery={searchQuery} />;
       case 'assembly':
         return (
-          <div className="p-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Module d'assemblage</h3>
-              <p className="text-gray-600">Cette fonctionnalité sera bientôt disponible.</p>
+          <div className="p-6 bg-3s-gray-light min-h-full">
+            <div className="card-3s p-12 text-center animate-fade-in">
+              <div className="p-4 bg-3s-blue/10 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+                <Wrench className="w-10 h-10 text-3s-blue" />
+              </div>
+              <h3 className="text-2xl font-semibold text-3s-black mb-3 font-inter">Module d'assemblage</h3>
+              <p className="text-3s-gray-medium font-inter">Cette fonctionnalité sera bientôt disponible.</p>
+              <p className="text-sm text-gray-400 mt-2 font-inter">Workflow Kanban et gestion des assemblages</p>
             </div>
           </div>
         );
       case 'movements':
         return (
-          <div className="p-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Stock & mouvements</h3>
-              <p className="text-gray-600">Cette fonctionnalité sera bientôt disponible.</p>
+          <div className="p-6 bg-3s-gray-light min-h-full">
+            <div className="card-3s p-12 text-center animate-fade-in">
+              <div className="p-4 bg-green-100 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+                <TrendingUp className="w-10 h-10 text-green-600" />
+              </div>
+              <h3 className="text-2xl font-semibold text-3s-black mb-3 font-inter">Stock & mouvements</h3>
+              <p className="text-3s-gray-medium font-inter">Cette fonctionnalité sera bientôt disponible.</p>
+              <p className="text-sm text-gray-400 mt-2 font-inter">Historique et traçabilité des mouvements</p>
             </div>
           </div>
         );
       case 'costs':
         return (
-          <div className="p-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Coûts & marges</h3>
-              <p className="text-gray-600">Cette fonctionnalité sera bientôt disponible.</p>
+          <div className="p-6 bg-3s-gray-light min-h-full">
+            <div className="card-3s p-12 text-center animate-fade-in">
+              <div className="p-4 bg-purple-100 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+                <DollarSign className="w-10 h-10 text-purple-600" />
+              </div>
+              <h3 className="text-2xl font-semibold text-3s-black mb-3 font-inter">Coûts & marges</h3>
+              <p className="text-3s-gray-medium font-inter">Cette fonctionnalité sera bientôt disponible.</p>
+              <p className="text-sm text-gray-400 mt-2 font-inter">Analyse financière et rentabilité</p>
             </div>
           </div>
         );
       case 'suppliers':
         return (
-          <div className="p-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Fournisseurs</h3>
-              <p className="text-gray-600">Cette fonctionnalité sera bientôt disponible.</p>
+          <div className="p-6 bg-3s-gray-light min-h-full">
+            <div className="card-3s p-12 text-center animate-fade-in">
+              <div className="p-4 bg-orange-100 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+                <Truck className="w-10 h-10 text-orange-600" />
+              </div>
+              <h3 className="text-2xl font-semibold text-3s-black mb-3 font-inter">Fournisseurs</h3>
+              <p className="text-3s-gray-medium font-inter">Cette fonctionnalité sera bientôt disponible.</p>
+              <p className="text-sm text-gray-400 mt-2 font-inter">Gestion des partenaires et commandes</p>
             </div>
           </div>
         );
       case 'users':
         return (
-          <div className="p-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Utilisateurs</h3>
-              <p className="text-gray-600">Cette fonctionnalité sera bientôt disponible.</p>
+          <div className="p-6 bg-3s-gray-light min-h-full">
+            <div className="card-3s p-12 text-center animate-fade-in">
+              <div className="p-4 bg-indigo-100 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+                <Users className="w-10 h-10 text-indigo-600" />
+              </div>
+              <h3 className="text-2xl font-semibold text-3s-black mb-3 font-inter">Utilisateurs</h3>
+              <p className="text-3s-gray-medium font-inter">Cette fonctionnalité sera bientôt disponible.</p>
+              <p className="text-sm text-gray-400 mt-2 font-inter">Gestion des accès et permissions</p>
             </div>
           </div>
         );
       case 'settings':
         return (
-          <div className="p-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Paramètres</h3>
-              <p className="text-gray-600">Cette fonctionnalité sera bientôt disponible.</p>
+          <div className="p-6 bg-3s-gray-light min-h-full">
+            <div className="card-3s p-12 text-center animate-fade-in">
+              <div className="p-4 bg-gray-100 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+                <Settings className="w-10 h-10 text-gray-600" />
+              </div>
+              <h3 className="text-2xl font-semibold text-3s-black mb-3 font-inter">Paramètres</h3>
+              <p className="text-3s-gray-medium font-inter">Cette fonctionnalité sera bientôt disponible.</p>
+              <p className="text-sm text-gray-400 mt-2 font-inter">Configuration système et préférences</p>
             </div>
           </div>
         );
@@ -123,17 +148,21 @@ const AppContent = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
-          <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold text-blue-600">StockSpider</h1>
-            <p className="text-gray-600 mt-2">Connectez-vous pour accéder à votre inventaire</p>
+      <div className="min-h-screen bg-3s-gray-light flex items-center justify-center p-4">
+        <div className="card-3s p-8 max-w-md w-full animate-fade-in">
+          <div className="text-center mb-8">
+            <div className="p-4 bg-3s-blue/10 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+              <Package className="w-8 h-8 text-3s-blue" />
+            </div>
+            <h1 className="text-3xl font-bold text-3s-blue font-inter mb-2">StockSpider</h1>
+            <p className="text-3s-gray-medium font-inter">Powered by 3S IT</p>
+            <p className="text-gray-500 mt-2 font-inter">Connectez-vous pour accéder à votre inventaire</p>
           </div>
           <button
             onClick={() => {/* Auto-login for demo */}}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-colors"
+            className="w-full btn-3s-primary py-3 text-lg"
           >
-            Connexion automatique (Demo)
+            <span className="font-inter">Connexion automatique (Demo)</span>
           </button>
         </div>
       </div>
@@ -141,11 +170,13 @@ const AppContent = () => {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-3s-gray-light">
       <Sidebar 
         currentPage={currentPage} 
         onPageChange={setCurrentPage}
         lowStockCount={lowStockCount}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
       
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -158,7 +189,7 @@ const AppContent = () => {
           notificationCount={lowStockCount}
         />
         
-        <main className="flex-1 overflow-y-auto bg-gray-50">
+        <main className="flex-1 overflow-y-auto bg-3s-gray-light">
           {renderPageContent()}
         </main>
       </div>

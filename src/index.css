@@ -1,3 +1,42 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #F8FAFC;
+}
+
+@layer components {
+  .btn-3s-primary {
+    @apply bg-3s-blue hover:bg-3s-blue-dark text-white font-medium px-4 py-2 rounded-lg shadow-3s transition-all duration-200 hover:shadow-3s-lg hover:scale-105;
+  }
+  
+  .btn-3s-secondary {
+    @apply bg-white hover:bg-gray-50 text-3s-black border border-gray-200 font-medium px-4 py-2 rounded-lg shadow-card transition-all duration-200 hover:shadow-card-hover;
+  }
+  
+  .btn-3s-danger {
+    @apply bg-3s-red hover:bg-3s-red-dark text-white font-medium px-4 py-2 rounded-lg shadow-card transition-all duration-200 hover:shadow-card-hover hover:scale-105;
+  }
+  
+  .card-3s {
+    @apply bg-white rounded-xl shadow-card border border-gray-100 transition-all duration-200 hover:shadow-card-hover;
+  }
+  
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all duration-200 hover:scale-105;
+  }
+  
+  .sidebar-item-active {
+    @apply bg-3s-blue text-white shadow-3s;
+  }
+  
+  .sidebar-item-inactive {
+    @apply text-slate-300 hover:bg-slate-700 hover:text-white;
+  }
+}
