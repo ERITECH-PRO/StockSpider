@@ -16,6 +16,7 @@ const AppContent = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showComponentModal, setShowComponentModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const lowStockCount = getLowStockComponents().length;
 
@@ -123,15 +124,19 @@ const AppContent = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+      <div className="min-h-screen bg-gradient-to-br from-3s-blue/10 via-white to-3s-blue/5 flex items-center justify-center">
+        <div className="bg-white p-10 rounded-2xl shadow-3s-lg max-w-md w-full border border-3s-gray-light animate-fade-in">
           <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold text-blue-600">StockSpider</h1>
-            <p className="text-gray-600 mt-2">Connectez-vous pour accéder à votre inventaire</p>
+            <div className="w-16 h-16 bg-3s-blue rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-3s">
+              <span className="text-white font-bold text-xl">SS</span>
+            </div>
+            <h1 className="text-3xl font-bold text-3s-black font-inter">StockSpider</h1>
+            <p className="text-3s-gray-medium mt-2 font-medium">by 3S IT</p>
+            <p className="text-3s-gray-medium mt-4">Connectez-vous pour accéder à votre inventaire</p>
           </div>
           <button
             onClick={() => {/* Auto-login for demo */}}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-colors"
+            className="w-full bg-3s-blue hover:bg-3s-blue-dark text-white py-4 rounded-xl font-semibold transition-all duration-200 hover:scale-105 shadow-3s"
           >
             Connexion automatique (Demo)
           </button>
@@ -141,11 +146,13 @@ const AppContent = () => {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-3s-gray-light">
       <Sidebar 
         currentPage={currentPage} 
         onPageChange={setCurrentPage}
         lowStockCount={lowStockCount}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
       
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -158,7 +165,7 @@ const AppContent = () => {
           notificationCount={lowStockCount}
         />
         
-        <main className="flex-1 overflow-y-auto bg-gray-50">
+        <main className="flex-1 overflow-y-auto bg-3s-gray-light">
           {renderPageContent()}
         </main>
       </div>
