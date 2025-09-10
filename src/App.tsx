@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Package, Wrench, TrendingUp, DollarSign, Truck, Users, Settings } from 'lucide-react';
 import { AuthProvider, useAuth } from './hooks/useAuth.tsx';
 import { useData } from './hooks/useData';
 import Sidebar from './components/Layout/Sidebar';
