@@ -113,15 +113,17 @@ const Sidebar = ({ currentPage, onPageChange, lowStockCount, isCollapsed, onTogg
       <div className={`p-4 border-t border-gray-700 ${isCollapsed ? 'px-2' : ''}`}>
         {!isCollapsed ? (
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-3s-blue rounded-full flex items-center justify-center shadow-3s">
-              <span className="text-white text-sm font-bold">
-                {user?.name.charAt(0)}
-              </span>
-            </div>
-            <div>
-              <p className="text-white text-sm font-semibold">{user?.name}</p>
-              <p className="text-gray-400 text-xs capitalize font-medium">{user?.role}</p>
-            </div>
+            <>
+              <div className="w-10 h-10 bg-3s-blue rounded-full flex items-center justify-center shadow-3s">
+                <span className="text-white text-sm font-bold">
+                  {user?.name.charAt(0)}
+                </span>
+              </div>
+              <div>
+                <p className="text-white text-sm font-medium">{user?.name}</p>
+                <p className="text-slate-400 text-xs capitalize">{user?.role}</p>
+              </div>
+            </>
           </div>
         ) : (
           <div className="flex justify-center mb-3">
