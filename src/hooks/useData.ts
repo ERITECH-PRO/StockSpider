@@ -1,130 +1,94 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Component, Product, Supplier, StockMovement, DashboardStats, ComponentCategory } from '../types';
+import { apiService } from '../services/api';
+import { useToast } from './useToast';
 
-// Mock data for demonstration
-const mockComponents: Component[] = [
-  {
-    id: '1',
-    designation: 'Résistance 10kΩ',
-    name: 'R10K',
-    productNumber: 'R10K-0603',
-    footprint: '0603',
-    quantity: 1500,
-    unitPrice: 0.02,
-    supplier: 'Farnell',
-    category: 'resistance',
-    minStock: 100,
-    createdAt: '2024-01-15T10:00:00Z',
-    updatedAt: '2024-01-15T10:00:00Z',
-  },
-  {
-    id: '2',
-    designation: 'Condensateur 100nF',
-    name: 'C100N',
-    productNumber: 'C100N-0603',
-    footprint: '0603',
-    quantity: 50,
-    unitPrice: 0.05,
-    supplier: 'Mouser',
-    category: 'condensateur',
-    minStock: 200,
-    createdAt: '2024-01-15T10:30:00Z',
-    updatedAt: '2024-01-15T10:30:00Z',
-  },
-  {
-    id: '3',
-    designation: 'Microcontrôleur STM32',
-    name: 'STM32F103',
-    productNumber: 'STM32F103C8T6',
-    footprint: 'LQFP48',
-    quantity: 25,
-    unitPrice: 3.50,
-    supplier: 'STMicroelectronics',
-    category: 'microcontroleur',
-    minStock: 10,
-    createdAt: '2024-01-15T11:00:00Z',
-    updatedAt: '2024-01-15T11:00:00Z',
-  },
-];
-
-const mockProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Module Spider Basic',
-    description: 'Module de base avec STM32 et composants essentiels',
-    components: [
-      { componentId: '1', quantity: 4 },
-      { componentId: '2', quantity: 8 },
-      { componentId: '3', quantity: 1 },
-    ],
-    productionCost: 15.50,
-    sellingPrice: 25.00,
-    quantity: 10,
-    createdAt: '2024-01-15T12:00:00Z',
-    updatedAt: '2024-01-15T12:00:00Z',
-  },
-];
-
-const mockSuppliers: Supplier[] = [
-  {
-    id: '1',
-    name: 'Farnell',
-    contact: 'John Smith',
-    email: 'orders@farnell.com',
-    phone: '+33 1 23 45 67 89',
-    address: '123 Electronics Street, Paris',
-    createdAt: '2024-01-15T09:00:00Z',
-  },
-  {
-    id: '2',
-    name: 'Mouser Electronics',
-    contact: 'Sarah Johnson',
-    email: 'sales@mouser.fr',
-    phone: '+33 1 98 76 54 32',
-    address: '456 Component Avenue, Lyon',
-    createdAt: '2024-01-15T09:30:00Z',
-  },
-];
+// Mock suppliers (pas encore d'API)
+const mockSuppliers: Supplier[] = [];
 
 export const useData = () => {
-  const [components, setComponents] = useState<Component[]>(mockComponents);
-  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const { showError } = useToast();
+  const [components, setComponents] = useState<Component[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>(mockSuppliers);
   const [movements, setMovements] = useState<StockMovement[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
 
-  const addComponent = (component: Omit<Component, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newComponent: Component = {
-      ...component,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setComponents(prev => [...prev, newComponent]);
+  // Charger les données initiales
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [componentsData, productsData, statsData] = await Promise.all([
+        apiService.getComponents(),
+        apiService.getProducts(),
+        apiService.getDashboardStats()
+      ]);
+      
+      setComponents(componentsData);
+      setProducts(productsData);
+      setDashboardStats(statsData);
+    } catch (error) {
+      console.error('Erreur chargement données:', error);
+      showError('Erreur de connexion', 'Impossible de charger les données');
+    } finally {
+      setLoading(false);
+    }
+  }, [showError]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const addComponent = async (component: Omit<Component, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      const newComponent = await apiService.createComponent(component);
+      setComponents(prev => [...prev, newComponent]);
+      return newComponent;
+    } catch (error) {
+      console.error('Erreur ajout composant:', error);
+      showError('Erreur', 'Impossible d\'ajouter le composant');
+      throw error;
+    }
   };
 
-  const updateComponent = (id: string, updates: Partial<Component>) => {
-    setComponents(prev => 
-      prev.map(comp => 
-        comp.id === id 
-          ? { ...comp, ...updates, updatedAt: new Date().toISOString() }
-          : comp
-      )
-    );
+  const updateComponent = async (id: string, updates: Partial<Component>) => {
+    try {
+      const updatedComponent = await apiService.updateComponent(id, updates);
+      setComponents(prev => 
+        prev.map(comp => comp.id === id ? updatedComponent : comp)
+      );
+      return updatedComponent;
+    } catch (error) {
+      console.error('Erreur mise à jour composant:', error);
+      showError('Erreur', 'Impossible de mettre à jour le composant');
+      throw error;
+    }
   };
 
-  const deleteComponent = (id: string) => {
-    setComponents(prev => prev.filter(comp => comp.id !== id));
+  const deleteComponent = async (id: string) => {
+    try {
+      await apiService.deleteComponent(id);
+      setComponents(prev => prev.filter(comp => comp.id !== id));
+    } catch (error) {
+      console.error('Erreur suppression composant:', error);
+      showError('Erreur', 'Impossible de supprimer le composant');
+      throw error;
+    }
   };
 
-  const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newProduct: Product = {
-      ...product,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setProducts(prev => [...prev, newProduct]);
+  const addProduct = async (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      const newProduct = await apiService.createProduct(product);
+      setProducts(prev => [...prev, newProduct]);
+      // Recharger les composants pour mettre à jour les stocks
+      await loadData();
+      return newProduct;
+    } catch (error) {
+      console.error('Erreur ajout produit:', error);
+      showError('Erreur', 'Impossible d\'ajouter le produit');
+      throw error;
+    }
   };
 
   const updateProduct = (id: string, updates: Partial<Product>) => {
@@ -146,57 +110,37 @@ export const useData = () => {
     setSuppliers(prev => [...prev, newSupplier]);
   };
 
-  const updateStock = (componentId: string, quantity: number, type: 'in' | 'out' | 'adjustment', reason: string) => {
-    const component = components.find(c => c.id === componentId);
-    if (!component) return;
-
-    let newQuantity = component.quantity;
-    if (type === 'in') {
-      newQuantity += quantity;
-    } else if (type === 'out') {
-      newQuantity -= quantity;
-    } else {
-      newQuantity = quantity;
+  const updateStock = async (componentId: string, quantity: number, type: 'in' | 'out' | 'adjustment', reason: string) => {
+    try {
+      await apiService.updateStock(componentId, quantity, type, reason);
+      // Recharger les données pour avoir les stocks à jour
+      await loadData();
+    } catch (error) {
+      console.error('Erreur mise à jour stock:', error);
+      showError('Erreur', 'Impossible de mettre à jour le stock');
+      throw error;
     }
-
-    updateComponent(componentId, { quantity: Math.max(0, newQuantity) });
-
-    const movement: StockMovement = {
-      id: Date.now().toString(),
-      componentId,
-      type,
-      quantity,
-      reason,
-      userId: '1',
-      createdAt: new Date().toISOString(),
-    };
-    setMovements(prev => [movement, ...prev]);
   };
 
-  const assembleProduct = (productId: string) => {
-    const product = products.find(p => p.id === productId);
-    if (!product) return false;
-
-    // Vérifier si l'assemblage est possible
-    const canAssemble = product.components.every(pc => {
-      const component = components.find(c => c.id === pc.componentId);
-      return component && component.quantity >= pc.quantity;
-    });
-
-    if (!canAssemble) return false;
-
-    // Décrémenter le stock des composants
-    product.components.forEach(pc => {
-      updateStock(pc.componentId, pc.quantity, 'out', `Assemblage produit: ${product.name}`);
-    });
-
-    // Incrémenter le stock du produit
-    updateProduct(productId, { quantity: product.quantity + 1 });
-
-    return true;
+  const assembleProduct = async (productId: string) => {
+    try {
+      await apiService.assembleProduct(productId);
+      // Recharger les données pour mettre à jour les stocks
+      await loadData();
+      return true;
+    } catch (error) {
+      console.error('Erreur assemblage produit:', error);
+      showError('Erreur', error instanceof Error ? error.message : 'Impossible d\'assembler le produit');
+      return false;
+    }
   };
 
   const getDashboardStats = (): DashboardStats => {
+    if (dashboardStats) {
+      return dashboardStats;
+    }
+
+    // Fallback si les stats ne sont pas encore chargées
     const lowStockComponents = components.filter(c => c.quantity <= c.minStock);
     const totalValue = components.reduce((sum, c) => sum + (c.quantity * c.unitPrice), 0);
     
@@ -205,7 +149,7 @@ export const useData = () => {
       totalProducts: products.length,
       lowStockAlerts: lowStockComponents.length,
       totalValue,
-      recentMovements: movements.slice(0, 5),
+      recentMovements: [],
     };
   };
 
@@ -219,6 +163,7 @@ export const useData = () => {
     suppliers,
     movements,
     loading,
+    loadData,
     addComponent,
     updateComponent,
     deleteComponent,

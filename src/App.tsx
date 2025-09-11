@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, Wrench, TrendingUp, DollarSign, Truck, Users, Settings } from 'lucide-react';
+import { Package, Wrench, TrendingUp, DollarSign, Truck, Users, Settings, Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './hooks/useAuth.tsx';
 import { ToastProvider } from './hooks/useToast';
 import { useData } from './hooks/useData';
@@ -12,13 +12,15 @@ import ProductList from './components/Products/ProductList';
 import ProductModal from './components/Products/ProductModal';
 
 const AppContent = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, login, loading: authLoading } = useAuth();
   const { getLowStockComponents } = useData();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [showComponentModal, setShowComponentModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [loginForm, setLoginForm] = useState({ email: 'admin@stockspider.com', password: 'admin123' });
+  const [loginLoading, setLoginLoading] = useState(false);
 
   const lowStockCount = getLowStockComponents().length;
 
@@ -148,6 +150,29 @@ const AppContent = () => {
     }
   };
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginLoading(true);
+    await login(loginForm.email, loginForm.password);
+    setLoginLoading(false);
+  };
+
+  // Écran de chargement initial
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-3s-gray-light flex items-center justify-center">
+        <div className="text-center">
+          <div className="p-4 bg-3s-blue/10 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 text-3s-blue animate-spin" />
+          </div>
+          <h1 className="text-2xl font-bold text-3s-blue font-inter mb-2">StockSpider</h1>
+          <p className="text-3s-gray-medium font-inter">Chargement en cours...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Écran de connexion
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-3s-gray-light flex items-center justify-center p-4">
@@ -160,12 +185,50 @@ const AppContent = () => {
             <p className="text-3s-gray-medium font-inter">Powered by 3S IT</p>
             <p className="text-gray-500 mt-2 font-inter">Connectez-vous pour accéder à votre inventaire</p>
           </div>
-          <button
-            onClick={() => {/* Auto-login for demo */}}
-            className="w-full btn-3s-primary py-3 text-lg"
-          >
-            <span className="font-inter">Connexion automatique (Demo)</span>
-          </button>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-3s-black mb-2 font-inter">Email</label>
+              <input
+                type="email"
+                required
+                value={loginForm.email}
+                onChange={(e) => setLoginForm(prev => ({ ...prev, email: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter"
+                placeholder="admin@stockspider.com"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-3s-black mb-2 font-inter">Mot de passe</label>
+              <input
+                type="password"
+                required
+                value={loginForm.password}
+                onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter"
+                placeholder="admin123"
+              />
+            </div>
+            
+            <button
+              type="submit"
+              disabled={loginLoading}
+              className="w-full btn-3s-primary py-3 text-lg flex items-center justify-center gap-2"
+            >
+              {loginLoading && <Loader2 className="w-5 h-5 animate-spin" />}
+              <span className="font-inter">
+                {loginLoading ? 'Connexion...' : 'Se connecter'}
+              </span>
+            </button>
+          </form>
+          
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-sm text-blue-700 font-inter font-medium">🔗 Connexion MySQL</p>
+            <p className="text-xs text-blue-600 mt-1 font-inter">
+              L'application se connecte à votre base MySQL distante
+            </p>
+          </div>
         </div>
       </div>
     );
