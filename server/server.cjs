@@ -1,13 +1,13 @@
 const express = require('express');
 const cors = require('cors');
-const config = require('./config');
-const db = require('./database');
+const config = require('./config.cjs');
+const db = require('./database.cjs');
 
 // Routes
-const authRoutes = require('./routes/auth');
-const componentRoutes = require('./routes/components');
-const productRoutes = require('./routes/products');
-const dashboardRoutes = require('./routes/dashboard');
+const authRoutes = require('./routes/auth.cjs');
+const componentRoutes = require('./routes/components.cjs');
+const productRoutes = require('./routes/products.cjs');
+const dashboardRoutes = require('./routes/dashboard.cjs');
 
 const app = express();
 

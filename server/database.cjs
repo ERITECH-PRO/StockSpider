@@ -1,5 +1,5 @@
 const mysql = require('mysql2/promise');
-const config = require('./config');
+const config = require('./config.cjs');
 
 class Database {
   constructor() {
