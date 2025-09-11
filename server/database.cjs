@@ -11,10 +11,7 @@ class Database {
       database: config.db.database,
       waitForConnections: true,
       connectionLimit: 10,
-      queueLimit: 0,
-      acquireTimeout: 60000,
-      timeout: 60000,
-      reconnect: true
+      queueLimit: 0
     });
   }
 
