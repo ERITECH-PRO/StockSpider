@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const config = require('./config.cjs');
 const db = require('./database.cjs');
 
@@ -18,6 +19,11 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -60,10 +66,15 @@ const startServer = async () => {
 
     // Démarrage du serveur
     const PORT = config.port;
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Serveur StockSpider démarré sur le port ${PORT}`);
       console.log(`📊 API disponible sur http://localhost:${PORT}/api`);
       console.log(`🔗 Frontend sur http://localhost:5173`);
+      console.log(`🔍 Health check: http://localhost:${PORT}/health`);
+    });
+    
+    server.on('error', (err) => {
+      console.error('❌ Erreur serveur:', err);
     });
   } catch (error) {
     console.error('❌ Erreur au démarrage du serveur:', error);
