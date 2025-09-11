@@ -7,8 +7,9 @@
     "dev": "vite",
     "dev:server": "node server/server.js",
     "dev:full": "concurrently \"npm run dev:server\" \"npm run dev\"",
-    "build": "vite build",
-    "lint": "eslint .",
+    "dev:server": "cd server && node server.js",
+    "dev:full": "concurrently \"npm run dev:server\" \"npm run dev\"",
+    "start:server": "node server/server.js"
     "preview": "vite preview"
   },
   "dependencies": {
