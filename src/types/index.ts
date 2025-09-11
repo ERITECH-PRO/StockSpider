@@ -33,6 +33,18 @@ export interface Product {
   updatedAt: string;
 }
 
+export interface AssembledProduct {
+  id: string;
+  productId: string;
+  productName: string;
+  productDescription: string;
+  assembledQuantity: number;
+  assembledAt: string;
+  assembledBy: string;
+  totalCost: number;
+  sellingPrice: number;
+}
+
 export interface ProductComponent {
   componentId: string;
   quantity: number;

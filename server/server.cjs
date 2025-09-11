@@ -46,8 +46,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Erreur interne du serveur' });
 });
 
-// Route 404
-app.use('*', (req, res) => {
+// Route 404 (Express 5: utiliser un middleware sans chemin)
+app.use((req, res) => {
   res.status(404).json({ error: 'Route non trouvée' });
 });
 

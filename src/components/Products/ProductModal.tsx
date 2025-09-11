@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Box, Plus, Trash2, Upload } from 'lucide-react';
 import { Product, ProductComponent } from '../../types';
 import { useData } from '../../hooks/useData';
@@ -13,8 +13,8 @@ interface ProductModalProps {
 }
 
 const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
-  const { addProduct, updateProduct, components, addComponent } = useData();
-  const { showSuccess, showInfo } = useToast();
+  const { addProduct, updateProduct, components, addComponent, reloadComponents } = useData();
+  const { showSuccess, showInfo, showError } = useToast();
   const isEdit = !!product;
   const [showBOMImport, setShowBOMImport] = useState(false);
 
@@ -22,33 +22,98 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
     name: product?.name || '',
     description: product?.description || '',
     components: product?.components || [] as ProductComponent[],
-    productionCost: product?.productionCost || 0,
-    sellingPrice: product?.sellingPrice || 0,
-    quantity: product?.quantity || 0,
+    productionCost: Number(product?.productionCost) || 0,
+    sellingPrice: Number(product?.sellingPrice) || 0,
+    quantity: Number(product?.quantity) || 0,
   });
+
+  // Mettre à jour le formulaire quand le produit change
+  useEffect(() => {
+    console.log('🔧 ProductModal - Product reçu:', product);
+    
+    if (product) {
+      console.log('🔧 ProductModal - Pré-remplissage du formulaire avec:', {
+        name: product.name,
+        description: product.description,
+        components: product.components?.length || 0,
+        productionCost: product.productionCost,
+        sellingPrice: product.sellingPrice,
+        quantity: product.quantity
+      });
+      
+      setFormData({
+        name: product.name || '',
+        description: product.description || '',
+        components: product.components || [],
+        productionCost: Number(product.productionCost) || 0,
+        sellingPrice: Number(product.sellingPrice) || 0,
+        quantity: Number(product.quantity) || 0,
+      });
+    } else {
+      console.log('🔧 ProductModal - Réinitialisation du formulaire pour nouveau produit');
+      // Réinitialiser le formulaire pour un nouveau produit
+      setFormData({
+        name: '',
+        description: '',
+        components: [],
+        productionCost: 0,
+        sellingPrice: 0,
+        quantity: 0,
+      });
+    }
+  }, [product]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validation côté client
+    if (!formData.name || !formData.name.trim()) {
+      showError('Erreur', 'Le nom du produit est requis');
+      return;
+    }
+    
+    if (!formData.sellingPrice || formData.sellingPrice <= 0) {
+      showError('Erreur', 'Le prix de vente doit être supérieur à 0');
+      return;
+    }
+    
+    // S'assurer que les valeurs numériques sont bien définies
+    const dataToSend = {
+      ...formData,
+      productionCost: Number(formData.productionCost) || 0,
+      sellingPrice: Number(formData.sellingPrice) || 0,
+      quantity: Number(formData.quantity) || 0,
+    };
+    
+    // Debug: afficher les données envoyées
+    console.log('Données du formulaire:', dataToSend);
+    
     if (isEdit && product) {
-      updateProduct(product.id, formData);
+      updateProduct(product.id, dataToSend);
     } else {
-      addProduct(formData);
+      addProduct(dataToSend);
     }
     
     onClose();
   };
 
-  const handleBOMImport = (bomItems: BOMItem[]) => {
+  const handleBOMImport = async (bomItems: BOMItem[]) => {
     let newComponentsCount = 0;
     let existingComponentsCount = 0;
+    let updatedComponentsCount = 0;
     const productComponents: ProductComponent[] = [];
+    const createdComponentIds: string[] = [];
+    const quantityIncrements: Record<string, number> = {};
 
-    bomItems.forEach(bomItem => {
-      // Vérifier si le composant existe déjà
+    // console.log('📥 Import BOM:', bomItems.length, 'éléments');
+    // console.log('📦 Composants disponibles avant import:', components.length);
+
+    for (const bomItem of bomItems) {
+      // Vérifier si le composant existe déjà (recherche plus intelligente)
       let existingComponent = components.find(c => 
         c.productNumber === bomItem.productNumber || 
-        c.designation === bomItem.designation
+        c.designation === bomItem.designation ||
+        (c.name === bomItem.name && c.footprint === bomItem.footprint)
       );
 
       if (!existingComponent) {
@@ -65,47 +130,85 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
           minStock: Math.ceil(bomItem.quantity * 0.2), // 20% de la quantité requise comme stock minimum
         };
         
-        addComponent(newComponent);
-        newComponentsCount++;
-        
-        // Simuler l'ID du nouveau composant (dans une vraie app, on récupérerait l'ID retourné)
-        const componentId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
-        productComponents.push({
-          componentId,
-          quantity: bomItem.quantity
-        });
+        try {
+          // console.log('🔧 Création composant:', bomItem.designation);
+          const createdComponent = await addComponent(newComponent);
+          createdComponentIds.push(createdComponent.id);
+          newComponentsCount++;
+          
+          productComponents.push({
+            componentId: createdComponent.id,
+            quantity: bomItem.quantity
+          });
+          
+          // console.log('✅ Composant créé:', createdComponent.id);
+        } catch (error) {
+          console.error('Erreur création composant:', error);
+          showError('Erreur', `Impossible de créer le composant ${bomItem.designation}`);
+        }
       } else {
-        existingComponentsCount++;
-        productComponents.push({
-          componentId: existingComponent.id,
-          quantity: bomItem.quantity
-        });
+        // Composant existant - vérifier si on doit mettre à jour le stock
+        const alreadyInForm = formData.components.some(pc => pc.componentId === existingComponent.id);
+        if (alreadyInForm) {
+          quantityIncrements[existingComponent.id] = (quantityIncrements[existingComponent.id] || 0) + bomItem.quantity;
+          updatedComponentsCount++;
+        } else {
+          productComponents.push({ componentId: existingComponent.id, quantity: bomItem.quantity });
+          existingComponentsCount++;
+        }
       }
-    });
+    }
 
     // Mettre à jour les composants du produit
-    setFormData(prev => ({
-      ...prev,
-      components: [...prev.components, ...productComponents]
-    }));
+    setFormData(prev => {
+      const merged = prev.components.map(pc =>
+        quantityIncrements[pc.componentId]
+          ? { ...pc, quantity: pc.quantity + quantityIncrements[pc.componentId] }
+          : pc
+      );
+      return { ...prev, components: [...merged, ...productComponents] };
+    });
 
-    // Afficher un résumé
+    // Recharger les composants pour s'assurer qu'ils sont visibles dans la page des composants
     if (newComponentsCount > 0) {
+      // console.log('🔄 Rechargement des composants après import BOM...');
+      await reloadComponents();
+    }
+
+    // Calculer le coût total mis à jour
+    const totalCost = calculateTotalCost();
+
+    // Afficher un résumé détaillé
+    let message = '';
+    if (newComponentsCount > 0) {
+      message += `${newComponentsCount} nouveau${newComponentsCount > 1 ? 'x' : ''} composant${newComponentsCount > 1 ? 's' : ''} créé${newComponentsCount > 1 ? 's' : ''}`;
+    }
+    if (existingComponentsCount > 0) {
+      if (message) message += ', ';
+      message += `${existingComponentsCount} composant${existingComponentsCount > 1 ? 's' : ''} existant${existingComponentsCount > 1 ? 's' : ''} ajouté${existingComponentsCount > 1 ? 's' : ''}`;
+    }
+    if (updatedComponentsCount > 0) {
+      if (message) message += ', ';
+      message += `${updatedComponentsCount} quantité${updatedComponentsCount > 1 ? 's' : ''} mise${updatedComponentsCount > 1 ? 's' : ''} à jour`;
+    }
+
+    if (newComponentsCount > 0 || existingComponentsCount > 0 || updatedComponentsCount > 0) {
       showSuccess(
         'BOM importée avec succès',
-        `${newComponentsCount} nouveaux composants créés, ${existingComponentsCount} existants utilisés`
+        `${message}. Coût total: ${totalCost.toFixed(2)}€`
       );
     } else {
-      showInfo(
-        'BOM importée',
-        `${existingComponentsCount} composants existants ajoutés au produit`
-      );
+      showInfo('BOM importée', 'Aucun nouveau composant ajouté');
     }
 
     setShowBOMImport(false);
   };
 
   const handleChange = (field: string, value: any) => {
+    // Conversion des valeurs numériques
+    if (field === 'productionCost' || field === 'sellingPrice' || field === 'quantity') {
+      value = parseFloat(value) || 0;
+    }
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -136,22 +239,36 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
     }));
   };
 
-  const calculateTotalCost = () => {
-    const componentsCost = formData.components.reduce((total, pc) => {
+  const calculateComponentsCost = () => {
+    return formData.components.reduce((total, pc) => {
       const component = components.find(c => c.id === pc.componentId);
-      return total + (component ? component.unitPrice * pc.quantity : 0);
+      const unit = component ? Number(component.unitPrice) || 0 : 0;
+      const qty = Number(pc.quantity) || 0;
+      return total + unit * qty;
     }, 0);
-    return componentsCost + formData.productionCost;
   };
 
+  const calculateTotalCost = () => {
+    // Pour l'instant, le coût total correspond au coût de production basé sur la BOM
+    return calculateComponentsCost();
+  };
+
+  // Recalculer automatiquement le coût de production lorsqu'on modifie la liste des composants
+  React.useEffect(() => {
+    const autoCost = calculateComponentsCost();
+    setFormData(prev => ({ ...prev, productionCost: autoCost }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.components, components]);
+
   const getAvailableComponents = () => {
-    return components.filter(c => c.quantity > 0);
+    // Afficher tous les composants pour permettre la pré-sélection des éléments importés
+    return components;
   };
 
   if (!isOpen) return null;
 
   const totalCost = calculateTotalCost();
-  const margin = formData.sellingPrice > 0 ? ((formData.sellingPrice - totalCost) / formData.sellingPrice * 100).toFixed(1) : '0';
+  const margin = Number(formData.sellingPrice) > 0 ? ((Number(formData.sellingPrice) - totalCost) / Number(formData.sellingPrice) * 100).toFixed(1) : '0';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -269,6 +386,25 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
                           </option>
                         ))}
                       </select>
+                      {/* Détails du composant sélectionné */}
+                      {pc.componentId && (
+                        <div className="mt-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded p-2">
+                          {(() => {
+                            const comp = components.find(c => c.id === pc.componentId);
+                            if (!comp) return null;
+                            return (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                                <div><span className="font-medium">Nom:</span> {comp.name}</div>
+                                <div><span className="font-medium">Référence:</span> {comp.productNumber}</div>
+                                <div><span className="font-medium">Désignation:</span> {comp.designation}</div>
+                                <div><span className="font-medium">Footprint:</span> {comp.footprint}</div>
+                                <div><span className="font-medium">Catégorie:</span> <span className="capitalize">{comp.category}</span></div>
+                                <div><span className="font-medium">Prix unitaire:</span> {(Number(comp.unitPrice) || 0).toFixed(2)}€</div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -318,11 +454,11 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
                 type="number"
                 min="0"
                 step="0.01"
-                value={formData.productionCost}
-                onChange={(e) => handleChange('productionCost', parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={Number(formData.productionCost).toFixed(2)}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
               />
-              <p className="text-xs text-gray-500 mt-1">Main-d'œuvre, douane, etc.</p>
+              <p className="text-xs text-gray-500 mt-1">Calculé automatiquement depuis la BOM</p>
             </div>
 
             <div>
@@ -334,9 +470,10 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
                 min="0"
                 step="0.01"
                 required
-                value={formData.sellingPrice}
+                value={formData.sellingPrice || ''}
                 onChange={(e) => handleChange('sellingPrice', parseFloat(e.target.value) || 0)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="0.00"
               />
             </div>
 

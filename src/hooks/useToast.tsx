@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
 import Toast, { ToastProps } from '../components/UI/Toast';
 
 interface ToastContextType {
@@ -22,34 +22,36 @@ export const useToast = () => {
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<(ToastProps & { id: string })[]>([]);
 
-  const removeToast = (id: string) => {
+  const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
-  };
+  }, []);
 
-  const showToast = (toast: Omit<ToastProps, 'id' | 'onClose'>) => {
-    const id = Date.now().toString();
+  const showToast = useCallback((toast: Omit<ToastProps, 'id' | 'onClose'>) => {
+    const id = (globalThis as any).crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const newToast = { ...toast, id, onClose: removeToast };
     setToasts(prev => [...prev, newToast]);
-  };
+  }, [removeToast]);
 
-  const showSuccess = (title: string, message?: string) => {
+  const showSuccess = useCallback((title: string, message?: string) => {
     showToast({ type: 'success', title, message });
-  };
+  }, [showToast]);
 
-  const showError = (title: string, message?: string) => {
+  const showError = useCallback((title: string, message?: string) => {
     showToast({ type: 'error', title, message });
-  };
+  }, [showToast]);
 
-  const showWarning = (title: string, message?: string) => {
+  const showWarning = useCallback((title: string, message?: string) => {
     showToast({ type: 'warning', title, message });
-  };
+  }, [showToast]);
 
-  const showInfo = (title: string, message?: string) => {
+  const showInfo = useCallback((title: string, message?: string) => {
     showToast({ type: 'info', title, message });
-  };
+  }, [showToast]);
+
+  const value = useMemo(() => ({ showToast, showSuccess, showError, showWarning, showInfo }), [showToast, showSuccess, showError, showWarning, showInfo]);
 
   return (
-    <ToastContext.Provider value={{ showToast, showSuccess, showError, showWarning, showInfo }}>
+    <ToastContext.Provider value={value}>
       {children}
       
       {/* Toast Container */}

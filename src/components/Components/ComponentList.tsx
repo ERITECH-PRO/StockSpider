@@ -20,8 +20,12 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
     componentId: '',
     componentName: ''
   });
-  const [editComponent, setEditComponent] = useState<Component | null>(null);
+  const [editModal, setEditModal] = useState<{ show: boolean; component: Component | null }>({
+    show: false,
+    component: null
+  });
   const [stockAdjustments, setStockAdjustments] = useState<Record<string, number>>({});
+  const [updatingStocks, setUpdatingStocks] = useState<Set<string>>(new Set());
 
   const categories: (ComponentCategory | 'all')[] = [
     'all', 'condensateur', 'resistance', 'relais', 'microcontroleur', 
@@ -43,7 +47,7 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
         case 'quantity':
           return b.quantity - a.quantity;
         case 'price':
-          return b.unitPrice - a.unitPrice;
+          return Number(b.unitPrice) - Number(a.unitPrice);
         default:
           return 0;
       }
@@ -86,19 +90,48 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
     setDeleteConfirm({ show: false, componentId: '', componentName: '' });
   };
 
-  const handleStockAdjustment = (componentId: string, adjustment: number) => {
+  const handleEditComponent = (component: Component) => {
+    setEditModal({ show: true, component });
+  };
+
+  const handleCloseEditModal = () => {
+    setEditModal({ show: false, component: null });
+  };
+
+  const handleStockAdjustment = async (componentId: string, adjustment: number) => {
     const component = components.find(c => c.id === componentId);
     if (!component) return;
 
-    const newQuantity = Math.max(0, component.quantity + adjustment);
-    const reason = adjustment > 0 ? `Ajout manuel (+${adjustment})` : `Retrait manuel (${adjustment})`;
+    console.log('🔧 Ajustement stock:', {
+      componentId,
+      componentName: component.designation,
+      currentStock: component.quantity,
+      adjustment,
+      newStock: component.quantity + adjustment
+    });
+
+    setUpdatingStocks(prev => new Set(prev).add(componentId));
     
-    updateStock(componentId, Math.abs(adjustment), adjustment > 0 ? 'in' : 'out', reason);
-    
-    if (adjustment > 0) {
-      showSuccess('Stock mis à jour', `+${adjustment} ${component.designation}`);
-    } else {
-      showSuccess('Stock mis à jour', `${adjustment} ${component.designation}`);
+    try {
+      const newQuantity = Math.max(0, component.quantity + adjustment);
+      const reason = adjustment > 0 ? `Ajout manuel (+${adjustment})` : `Retrait manuel (${adjustment})`;
+      
+      await updateStock(componentId, Math.abs(adjustment), adjustment > 0 ? 'in' : 'out', reason);
+      
+      if (adjustment > 0) {
+        showSuccess('Stock mis à jour', `+${adjustment} ${component.designation}`);
+      } else {
+        showSuccess('Stock mis à jour', `${adjustment} ${component.designation}`);
+      }
+    } catch (error) {
+      console.error('❌ Erreur ajustement stock:', error);
+      showError('Erreur', 'Impossible de mettre à jour le stock');
+    } finally {
+      setUpdatingStocks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(componentId);
+        return newSet;
+      });
     }
   };
 
@@ -107,12 +140,42 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
     setStockAdjustments(prev => ({ ...prev, [componentId]: numValue }));
   };
 
-  const applyStockAdjustment = (componentId: string) => {
-    const adjustment = stockAdjustments[componentId];
-    if (!adjustment || adjustment === 0) return;
+  const applyStockAdjustment = async (componentId: string) => {
+    const newValue = stockAdjustments[componentId];
+    if (newValue === undefined || newValue < 0) {
+      showError('Erreur', 'Veuillez saisir une valeur valide (nombre entier ≥ 0)');
+      return;
+    }
 
-    handleStockAdjustment(componentId, adjustment);
-    setStockAdjustments(prev => ({ ...prev, [componentId]: 0 }));
+    const component = components.find(c => c.id === componentId);
+    if (!component) return;
+
+    const currentStock = component.quantity;
+    
+    if (newValue === 0) {
+      showError('Information', 'Veuillez saisir une valeur à ajouter (supérieure à 0)');
+      setStockAdjustments(prev => ({ ...prev, [componentId]: 0 }));
+      return;
+    }
+
+    setUpdatingStocks(prev => new Set(prev).add(componentId));
+    
+    try {
+      const reason = `Ajout manuel (+${newValue})`;
+      
+      // Utiliser le type 'in' pour ajouter la valeur au stock existant
+      await updateStock(componentId, newValue, 'in', reason);
+      showSuccess('Stock mis à jour', `${component.designation}: ${currentStock} + ${newValue} = ${currentStock + newValue}`);
+      
+      // Réinitialiser le champ
+      setStockAdjustments(prev => ({ ...prev, [componentId]: 0 }));
+    } finally {
+      setUpdatingStocks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(componentId);
+        return newSet;
+      });
+    }
   };
 
   return (
@@ -170,7 +233,7 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
                 
                 <div className="flex items-center gap-1">
                   <button 
-                    onClick={() => setEditComponent(component)}
+                    onClick={() => handleEditComponent(component)}
                     className="p-1 text-gray-400 hover:text-3s-blue hover:bg-blue-50 rounded transition-all duration-200"
                   >
                     <Edit2 className="w-4 h-4" />
@@ -214,42 +277,59 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
                   </div>
                   
                   {/* Quick Stock Adjustment */}
-                  <div className="flex items-center gap-2 mt-2">
-                    <button
-                      onClick={() => handleStockAdjustment(component.id, -1)}
-                      className="p-1 bg-3s-red text-white rounded hover:bg-3s-red-dark transition-colors"
-                      disabled={component.quantity <= 0}
-                    >
-                      <Minus className="w-3 h-3" />
-                    </button>
+                  <div className="space-y-2 mt-2">
+                    {/* Boutons +/- */}
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => handleStockAdjustment(component.id, -1)}
+                        className="p-1.5 bg-3s-red text-white rounded hover:bg-3s-red-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={component.quantity <= 0 || updatingStocks.has(component.id)}
+                        title="Diminuer le stock de 1"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      
+                      <button
+                        onClick={() => handleStockAdjustment(component.id, 1)}
+                        className="p-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={updatingStocks.has(component.id)}
+                        title="Augmenter le stock de 1"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
                     
-                    <input
-                      type="number"
-                      value={stockAdjustments[component.id] || ''}
-                      onChange={(e) => handleQuickStockChange(component.id, e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          applyStockAdjustment(component.id);
-                        }
-                      }}
-                      placeholder="±"
-                      className="w-16 px-2 py-1 text-xs border border-gray-300 rounded text-center font-inter"
-                    />
+                    {/* Saisie manuelle */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        value={stockAdjustments[component.id] || ''}
+                        onChange={(e) => handleQuickStockChange(component.id, e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            applyStockAdjustment(component.id);
+                          }
+                        }}
+                        placeholder="Quantité à ajouter"
+                        disabled={updatingStocks.has(component.id)}
+                        className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded text-center font-inter focus:ring-2 focus:ring-3s-blue focus:border-3s-blue disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      
+                      <button
+                        onClick={() => applyStockAdjustment(component.id)}
+                        className="px-3 py-1 bg-3s-blue text-white text-xs rounded hover:bg-3s-blue-dark transition-colors font-inter disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={stockAdjustments[component.id] === undefined || stockAdjustments[component.id] === 0 || updatingStocks.has(component.id)}
+                        title="Appliquer la nouvelle valeur de stock"
+                      >
+                        {updatingStocks.has(component.id) ? '...' : 'OK'}
+                      </button>
+                    </div>
                     
-                    <button
-                      onClick={() => applyStockAdjustment(component.id)}
-                      className="px-2 py-1 bg-3s-blue text-white text-xs rounded hover:bg-3s-blue-dark transition-colors font-inter"
-                      disabled={!stockAdjustments[component.id]}
-                    >
-                      OK
-                    </button>
-                    
-                    <button
-                      onClick={() => handleStockAdjustment(component.id, 1)}
-                      className="p-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
+                    {/* Aide contextuelle */}
+                    <div className="text-xs text-gray-500 text-center font-inter">
+                      Saisissez la quantité à ajouter au stock actuel
+                    </div>
                   </div>
                 </div>
                 
@@ -260,13 +340,13 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
                 
                 <div className="flex justify-between">
                   <span className="text-sm text-3s-gray-medium font-inter">Prix unitaire:</span>
-                  <span className="text-sm font-medium font-inter">{component.unitPrice.toFixed(2)}€</span>
+                  <span className="text-sm font-medium font-inter">{(Number(component.unitPrice) || 0).toFixed(2)}€</span>
                 </div>
                 
                 <div className="flex justify-between">
                   <span className="text-sm text-3s-gray-medium font-inter">Valeur stock:</span>
                   <span className="text-sm font-medium text-3s-blue font-inter">
-                    {(component.quantity * component.unitPrice).toFixed(2)}€
+                    {(component.quantity * (Number(component.unitPrice) || 0)).toFixed(2)}€
                   </span>
                 </div>
                 
@@ -317,9 +397,9 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
 
       {/* Edit Component Modal */}
       <ComponentModal
-        isOpen={!!editComponent}
-        onClose={() => setEditComponent(null)}
-        component={editComponent || undefined}
+        isOpen={editModal.show}
+        onClose={handleCloseEditModal}
+        component={editModal.component || undefined}
       />
     </div>
   );

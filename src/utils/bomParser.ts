@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { Component, ComponentCategory } from '../types';
+import { ComponentCategory } from '../types';
 
 export interface BOMItem {
   designation: string;
@@ -33,28 +33,85 @@ const COLUMN_MAPPINGS = {
 };
 
 const CATEGORY_MAPPINGS: Record<string, ComponentCategory> = {
+  // Résistances
   'resistor': 'resistance',
   'resistance': 'resistance',
   'resistances': 'resistance',
+  'r': 'resistance',
+  'res': 'resistance',
+  
+  // Condensateurs
   'capacitor': 'condensateur',
   'condensateur': 'condensateur',
   'condensateurs': 'condensateur',
+  'c': 'condensateur',
+  'cap': 'condensateur',
+  
+  // Relais
   'relay': 'relais',
   'relais': 'relais',
+  'rel': 'relais',
+  
+  // Microcontrôleurs
   'microcontroller': 'microcontroleur',
   'microcontroleur': 'microcontroleur',
   'mcu': 'microcontroleur',
+  'cpu': 'microcontroleur',
+  'processor': 'microcontroleur',
+  'stm32': 'microcontroleur',
+  'arduino': 'microcontroleur',
+  'esp32': 'microcontroleur',
+  'esp8266': 'microcontroleur',
+  'atmega': 'microcontroleur',
+  'pic': 'microcontroleur',
+  
+  // Connecteurs
   'connector': 'connecteur',
   'connecteur': 'connecteur',
+  'connecteurs': 'connecteur',
+  'header': 'connecteur',
+  'socket': 'connecteur',
+  'plug': 'connecteur',
+  'jack': 'connecteur',
+  'usb': 'connecteur',
+  'rj45': 'connecteur',
+  
+  // Inducteurs
   'inductor': 'inducteur',
   'inducteur': 'inducteur',
+  'inducteurs': 'inducteur',
+  'l': 'inducteur',
+  'coil': 'inducteur',
+  'choke': 'inducteur',
+  
+  // Diodes
   'diode': 'diode',
   'diodes': 'diode',
+  'd': 'diode',
+  'led': 'diode',
+  'zener': 'diode',
+  'schottky': 'diode',
+  
+  // Transistors
   'transistor': 'transistor',
   'transistors': 'transistor',
+  'q': 'transistor',
+  'mosfet': 'transistor',
+  'bjt': 'transistor',
+  'fet': 'transistor',
+  'igbt': 'transistor',
+  
+  // Capteurs
   'sensor': 'capteur',
   'capteur': 'capteur',
   'capteurs': 'capteur',
+  'temp': 'capteur',
+  'temperature': 'capteur',
+  'humidity': 'capteur',
+  'pressure': 'capteur',
+  'accelerometer': 'capteur',
+  'gyroscope': 'capteur',
+  'magnetometer': 'capteur',
 };
 
 function normalizeColumnName(name: string): string {
@@ -71,8 +128,18 @@ function findColumnIndex(headers: string[], possibleNames: string[]): number {
   return -1;
 }
 
-function parseCategory(categoryStr: string): ComponentCategory {
-  if (!categoryStr) return 'autre';
+function parseCategory(categoryStr: string, designation?: string, productNumber?: string): ComponentCategory {
+  if (!categoryStr) {
+    // Essayer de détecter la catégorie depuis la désignation ou le numéro de produit
+    const searchText = `${designation || ''} ${productNumber || ''}`.toLowerCase();
+    
+    for (const [keyword, category] of Object.entries(CATEGORY_MAPPINGS)) {
+      if (searchText.includes(keyword)) {
+        return category;
+      }
+    }
+    return 'autre';
+  }
   
   const normalized = categoryStr.toLowerCase().trim();
   return CATEGORY_MAPPINGS[normalized] || 'autre';
@@ -103,8 +170,10 @@ export async function parseBOMFile(file: File): Promise<BOMParseResult> {
       return await parseCSVFile(file);
     } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
       return await parseExcelFile(file);
+    } else if (fileExtension === 'txt' || fileExtension === 'md') {
+      return await parseTextFile(file);
     } else {
-      result.errors.push('Format de fichier non supporté. Utilisez .xlsx, .xls ou .csv');
+      result.errors.push('Format de fichier non supporté. Utilisez .xlsx, .xls, .csv, .txt ou .md');
       return result;
     }
   } catch (error) {
@@ -125,7 +194,7 @@ async function parseCSVFile(file: File): Promise<BOMParseResult> {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: (results) => {
+      complete: (results: any) => {
         try {
           const data = results.data as any[];
           result.totalItems = data.length;
@@ -164,7 +233,7 @@ async function parseCSVFile(file: File): Promise<BOMParseResult> {
           resolve(result);
         }
       },
-      error: (error) => {
+      error: (error: any) => {
         result.errors.push(`Erreur Papa Parse: ${error.message}`);
         resolve(result);
       }
@@ -247,6 +316,172 @@ async function parseExcelFile(file: File): Promise<BOMParseResult> {
   });
 }
 
+async function parseTextFile(file: File): Promise<BOMParseResult> {
+  return new Promise((resolve) => {
+    const result: BOMParseResult = {
+      success: false,
+      items: [],
+      errors: [],
+      totalItems: 0
+    };
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const lines = content.split('\n').filter(line => line.trim());
+        
+        if (lines.length === 0) {
+          result.errors.push('Le fichier texte est vide');
+          resolve(result);
+          return;
+        }
+
+        // Détecter le format du fichier
+        const firstLine = lines[0].toLowerCase();
+        let isTableFormat = false;
+        let separator = '\t'; // Tab par défaut
+
+        // Détecter les séparateurs
+        if (firstLine.includes('|')) {
+          separator = '|';
+          isTableFormat = true;
+        } else if (firstLine.includes('\t')) {
+          separator = '\t';
+          isTableFormat = true;
+        } else if (firstLine.includes(',')) {
+          separator = ',';
+          isTableFormat = true;
+        } else if (firstLine.includes(';')) {
+          separator = ';';
+          isTableFormat = true;
+        }
+
+        if (isTableFormat) {
+          // Format tabulaire (CSV-like ou Markdown table)
+          const data: any[] = [];
+          const headers: string[] = [];
+          
+          lines.forEach((line, index) => {
+            // Ignorer les lignes de séparation markdown (|---|---|)
+            if (line.includes('---') || line.includes('===')) return;
+            
+            const cells = line.split(separator).map(cell => cell.trim().replace(/^\|+|\|+$/g, ''));
+            
+            if (index === 0) {
+              // Première ligne = headers
+              headers.push(...cells);
+            } else {
+              // Lignes de données
+              const row: any = {};
+              cells.forEach((cell, cellIndex) => {
+                if (headers[cellIndex]) {
+                  row[headers[cellIndex]] = cell;
+                }
+              });
+              if (Object.keys(row).length > 0) {
+                data.push(row);
+              }
+            }
+          });
+
+          result.totalItems = data.length;
+          
+          if (data.length === 0) {
+            result.errors.push('Aucune donnée trouvée dans le fichier');
+            resolve(result);
+            return;
+          }
+
+          const columnIndices = getColumnIndices(headers);
+
+          if (columnIndices.designation === -1 || columnIndices.quantity === -1) {
+            result.errors.push('Colonnes obligatoires manquantes: designation et quantity sont requises');
+            resolve(result);
+            return;
+          }
+
+          data.forEach((row, index) => {
+            try {
+              const item = parseRowToBOMItem(row, columnIndices, headers);
+              if (item) {
+                result.items.push(item);
+              }
+            } catch (error) {
+              result.errors.push(`Ligne ${index + 2}: ${error instanceof Error ? error.message : 'Erreur de parsing'}`);
+            }
+          });
+        } else {
+          // Format libre - essayer de parser chaque ligne
+          lines.forEach((line, index) => {
+            try {
+              const item = parseFreeTextLine(line, index + 1);
+              if (item) {
+                result.items.push(item);
+                result.totalItems++;
+              }
+            } catch (error) {
+              result.errors.push(`Ligne ${index + 1}: ${error instanceof Error ? error.message : 'Erreur de parsing'}`);
+            }
+          });
+        }
+
+        result.success = result.items.length > 0;
+        resolve(result);
+      } catch (error) {
+        result.errors.push(`Erreur lors du parsing du fichier texte: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+        resolve(result);
+      }
+    };
+
+    reader.onerror = () => {
+      result.errors.push('Erreur lors de la lecture du fichier');
+      resolve(result);
+    };
+
+    reader.readAsText(file);
+  });
+}
+
+function parseFreeTextLine(line: string, _lineNumber: number): BOMItem | null {
+  // Patterns pour détecter les composants dans du texte libre
+  const patterns = [
+    // Format: R1 10kΩ 0603 100 0.02
+    /^([A-Z]\d+)\s+([^\s]+)\s+(\w+)\s+(\d+)\s+([\d.,]+)/i,
+    // Format: C1 100nF 0603 50 0.05
+    /^([A-Z]\d+)\s+([^\s]+)\s+(\w+)\s+(\d+)\s+([\d.,]+)/i,
+    // Format: U1 STM32F103 LQFP48 10 3.50
+    /^([A-Z]\d+)\s+([^\s]+)\s+(\w+)\s+(\d+)\s+([\d.,]+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = line.match(pattern);
+    if (match) {
+      const [, designation, name, footprint, quantityStr, priceStr] = match;
+      
+      const quantity = parseNumber(quantityStr);
+      const unitPrice = parseNumber(priceStr);
+      
+      if (quantity <= 0) {
+        throw new Error(`Quantité invalide: ${quantityStr}`);
+      }
+
+      return {
+        designation: designation.trim(),
+        name: name.trim(),
+        productNumber: `PN-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        footprint: footprint.trim(),
+        quantity,
+        unitPrice,
+        supplier: '',
+        category: parseCategory('', designation, name),
+      };
+    }
+  }
+
+  return null;
+}
+
 function getColumnIndices(headers: string[]) {
   return {
     designation: findColumnIndex(headers, COLUMN_MAPPINGS.designation),
@@ -285,7 +520,7 @@ function parseRowToBOMItem(row: any, columnIndices: any, headers: string[]): BOM
   const unitPrice = parseNumber(getValue(columnIndices.unitPrice));
   const supplier = String(getValue(columnIndices.supplier)).trim() || '';
   const categoryStr = String(getValue(columnIndices.category)).trim();
-  const category = parseCategory(categoryStr);
+  const category = parseCategory(categoryStr, designation, productNumber);
 
   return {
     designation,

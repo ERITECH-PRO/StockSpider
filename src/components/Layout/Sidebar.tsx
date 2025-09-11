@@ -12,7 +12,7 @@ import {
   LogOut,
   AlertCircle,
   Menu,
-  X
+  X,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 

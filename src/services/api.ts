@@ -33,6 +33,11 @@ class ApiService {
       },
     });
 
+    if (response.status === 401) {
+      this.logout();
+      throw new Error('Non autorisé (401)');
+    }
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Erreur réseau' }));
       throw new Error(error.error || `HTTP ${response.status}`);
@@ -59,6 +64,11 @@ class ApiService {
     localStorage.removeItem('stockspider_token');
   }
 
+  // Vérifier si l'utilisateur est connecté
+  isLoggedIn(): boolean {
+    return !!this.token && !!localStorage.getItem('stockspider_token');
+  }
+
   // Composants
   async getComponents(): Promise<Component[]> {
     return this.request<Component[]>('/components');
@@ -80,6 +90,12 @@ class ApiService {
 
   async deleteComponent(id: string): Promise<void> {
     await this.request(`/components/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async deleteProduct(id: string): Promise<void> {
+    await this.request(`/products/${id}`, {
       method: 'DELETE',
     });
   }
@@ -121,7 +137,8 @@ class ApiService {
   // Test de connexion
   async testConnection(): Promise<boolean> {
     try {
-      await this.request('/health');
+      // Tester avec un endpoint qui nécessite une authentification
+      await this.request('/dashboard/stats');
       return true;
     } catch {
       return false;

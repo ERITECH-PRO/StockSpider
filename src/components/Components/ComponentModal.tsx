@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Package } from 'lucide-react';
 import { Component, ComponentCategory } from '../../types';
 import { useData } from '../../hooks/useData';
@@ -26,6 +26,47 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
     category: component?.category || 'autre' as ComponentCategory,
     minStock: component?.minStock || 0,
   });
+
+  // Mettre à jour le formulaire quand le composant change
+  useEffect(() => {
+    console.log('🔧 ComponentModal - Component reçu:', component);
+    
+    if (component) {
+      console.log('🔧 ComponentModal - Pré-remplissage du formulaire avec:', {
+        designation: component.designation,
+        name: component.name,
+        productNumber: component.productNumber,
+        quantity: component.quantity,
+        unitPrice: component.unitPrice
+      });
+      
+      setFormData({
+        designation: component.designation || '',
+        name: component.name || '',
+        productNumber: component.productNumber || '',
+        footprint: component.footprint || '',
+        quantity: component.quantity || 0,
+        unitPrice: component.unitPrice || 0,
+        supplier: component.supplier || '',
+        category: component.category || 'autre' as ComponentCategory,
+        minStock: component.minStock || 0,
+      });
+    } else {
+      console.log('🔧 ComponentModal - Réinitialisation du formulaire pour nouveau composant');
+      // Réinitialiser le formulaire pour un nouveau composant
+      setFormData({
+        designation: '',
+        name: '',
+        productNumber: '',
+        footprint: '',
+        quantity: 0,
+        unitPrice: 0,
+        supplier: '',
+        category: 'autre' as ComponentCategory,
+        minStock: 0,
+      });
+    }
+  }, [component]);
 
   const categories: ComponentCategory[] = [
     'condensateur', 'resistance', 'relais', 'microcontroleur',
