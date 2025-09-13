@@ -62,7 +62,16 @@ router.post('/', auth, async (req, res) => {
       return res.status(409).json({ error: 'Ce numéro de produit existe déjà' });
     }
 
-    const componentId = randomUUID();
+    // Générer un ID court pour le composant
+    const existingComponents = await db.query('SELECT id FROM components WHERE id LIKE "CP%"');
+    let maxNumber = 0;
+    existingComponents.forEach(comp => {
+      const number = parseInt(comp.id.substring(2));
+      if (!isNaN(number) && number > maxNumber) {
+        maxNumber = number;
+      }
+    });
+    const componentId = `CP${maxNumber + 1}`;
     await db.query(`
       INSERT INTO components 
       (id, designation, name, product_number, footprint, quantity, unit_price, supplier, category, min_stock)

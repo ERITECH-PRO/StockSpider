@@ -23,8 +23,7 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
     description: product?.description || '',
     components: product?.components || [] as ProductComponent[],
     productionCost: Number(product?.productionCost) || 0,
-    sellingPrice: Number(product?.sellingPrice) || 0,
-    quantity: Number(product?.quantity) || 0,
+    productNumber: product?.productNumber || '',
   });
 
   // Mettre à jour le formulaire quand le produit change
@@ -37,8 +36,7 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
         description: product.description,
         components: product.components?.length || 0,
         productionCost: product.productionCost,
-        sellingPrice: product.sellingPrice,
-        quantity: product.quantity
+        productNumber: product.productNumber
       });
       
       setFormData({
@@ -46,8 +44,7 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
         description: product.description || '',
         components: product.components || [],
         productionCost: Number(product.productionCost) || 0,
-        sellingPrice: Number(product.sellingPrice) || 0,
-        quantity: Number(product.quantity) || 0,
+        productNumber: product.productNumber || '',
       });
     } else {
       console.log('🔧 ProductModal - Réinitialisation du formulaire pour nouveau produit');
@@ -57,13 +54,12 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
         description: '',
         components: [],
         productionCost: 0,
-        sellingPrice: 0,
-        quantity: 0,
+        productNumber: '',
       });
     }
   }, [product]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validation côté client
@@ -72,29 +68,32 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
       return;
     }
     
-    if (!formData.sellingPrice || formData.sellingPrice <= 0) {
-      showError('Erreur', 'Le prix de vente doit être supérieur à 0');
-      return;
-    }
     
     // S'assurer que les valeurs numériques sont bien définies
     const dataToSend = {
       ...formData,
       productionCost: Number(formData.productionCost) || 0,
-      sellingPrice: Number(formData.sellingPrice) || 0,
-      quantity: Number(formData.quantity) || 0,
+      quantity: 0, // Quantité fixée à 0 car non utilisée
+      sellingPrice: 0, // Prix de vente fixé à 0 car non utilisé
     };
     
     // Debug: afficher les données envoyées
     console.log('Données du formulaire:', dataToSend);
     
-    if (isEdit && product) {
-      updateProduct(product.id, dataToSend);
-    } else {
-      addProduct(dataToSend);
+    try {
+      if (isEdit && product) {
+        await updateProduct(product.id, dataToSend);
+        showSuccess('Produit mis à jour', `${dataToSend.name} a été modifié avec succès`);
+      } else {
+        await addProduct(dataToSend);
+        showSuccess('Produit créé', `${dataToSend.name} a été créé avec succès`);
+      }
+      
+      onClose();
+    } catch (error) {
+      console.error('Erreur lors de la soumission:', error);
+      // L'erreur est déjà gérée dans les fonctions addProduct/updateProduct
     }
-    
-    onClose();
   };
 
   const handleBOMImport = async (bomItems: BOMItem[]) => {
@@ -206,7 +205,7 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
 
   const handleChange = (field: string, value: any) => {
     // Conversion des valeurs numériques
-    if (field === 'productionCost' || field === 'sellingPrice' || field === 'quantity') {
+    if (field === 'productionCost') {
       value = parseFloat(value) || 0;
     }
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -267,8 +266,6 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
 
   if (!isOpen) return null;
 
-  const totalCost = calculateTotalCost();
-  const margin = Number(formData.sellingPrice) > 0 ? ((Number(formData.sellingPrice) - totalCost) / Number(formData.sellingPrice) * 100).toFixed(1) : '0';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -316,14 +313,14 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Quantité en stock
+                Référence produit
               </label>
               <input
-                type="number"
-                min="0"
-                value={formData.quantity}
-                onChange={(e) => handleChange('quantity', parseInt(e.target.value) || 0)}
+                type="text"
+                value={formData.productNumber}
+                onChange={(e) => handleChange('productNumber', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Ex: SH-1R"
               />
             </div>
           </div>
@@ -444,8 +441,8 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
             </div>
           </div>
 
-          {/* Costs */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Production Cost */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Coût de production (€)
@@ -459,29 +456,6 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
               />
               <p className="text-xs text-gray-500 mt-1">Calculé automatiquement depuis la BOM</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Prix de vente (€) *
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                required
-                value={formData.sellingPrice || ''}
-                onChange={(e) => handleChange('sellingPrice', parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="flex flex-col justify-end">
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600">Coût total: {totalCost.toFixed(2)}€</p>
-                <p className="text-sm font-medium text-gray-900">Marge: {margin}%</p>
-              </div>
             </div>
           </div>
 

@@ -58,6 +58,10 @@ class Database {
       await this.createTables();
       console.log('✅ Tables créées avec succès !');
       
+      // Migration des tables existantes
+      await this.migrateTables();
+      console.log('✅ Migration des tables terminée !');
+      
       // Insertion des données de test
       await this.insertSampleData();
       console.log('✅ Données de test insérées !');
@@ -113,6 +117,7 @@ class Database {
         id VARCHAR(36) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         description TEXT,
+        product_number VARCHAR(255) DEFAULT '',
         production_cost DECIMAL(10,2) DEFAULT 0.00,
         selling_price DECIMAL(10,2) DEFAULT 0.00,
         quantity INT DEFAULT 0,
@@ -145,11 +150,77 @@ class Database {
         FOREIGN KEY (component_id) REFERENCES components(id) ON DELETE SET NULL,
         FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )`,
+      
+      `CREATE TABLE IF NOT EXISTS assembly_movements (
+        id VARCHAR(36) PRIMARY KEY,
+        product_id VARCHAR(36) NOT NULL,
+        quantity INT NOT NULL DEFAULT 1,
+        assembled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        assembled_by VARCHAR(100) NOT NULL,
+        total_cost DECIMAL(10,2) DEFAULT 0.00,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      )`,
+      
+      `CREATE TABLE IF NOT EXISTS products_in_assembly (
+        id VARCHAR(36) PRIMARY KEY,
+        product_id VARCHAR(36) NOT NULL,
+        product_name VARCHAR(255) NOT NULL,
+        product_description TEXT,
+        quantity_to_assemble INT NOT NULL DEFAULT 1,
+        components_required JSON NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_by VARCHAR(100) NOT NULL,
+        status ENUM('pending', 'in_progress', 'completed', 'cancelled') DEFAULT 'pending',
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      )`,
+      
+      `CREATE TABLE IF NOT EXISTS components_to_buy (
+        id VARCHAR(36) PRIMARY KEY,
+        component_id VARCHAR(36) NOT NULL,
+        component_name VARCHAR(255) NOT NULL,
+        component_designation VARCHAR(255) NOT NULL,
+        required_quantity INT NOT NULL,
+        available_quantity INT NOT NULL,
+        quantity_to_buy INT NOT NULL,
+        unit_price DECIMAL(10,2) NOT NULL,
+        total_cost DECIMAL(10,2) NOT NULL,
+        product_in_assembly_id VARCHAR(36) NOT NULL,
+        product_name VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        status ENUM('pending', 'ordered', 'received', 'cancelled') DEFAULT 'pending',
+        FOREIGN KEY (component_id) REFERENCES components(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_in_assembly_id) REFERENCES products_in_assembly(id) ON DELETE CASCADE
       )`
     ];
 
     for (const table of tables) {
       await this.query(table);
+    }
+  }
+
+  async migrateTables() {
+    try {
+      // Ajouter la colonne product_number à la table products si elle n'existe pas
+      const columns = await this.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'products' 
+        AND COLUMN_NAME = 'product_number'
+      `);
+      
+      if (columns.length === 0) {
+        await this.query(`
+          ALTER TABLE products 
+          ADD COLUMN product_number VARCHAR(255) DEFAULT '' 
+          AFTER description
+        `);
+        console.log('✅ Colonne product_number ajoutée à la table products');
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la migration:', error);
+      // Ne pas faire échouer l'initialisation si la migration échoue
     }
   }
 

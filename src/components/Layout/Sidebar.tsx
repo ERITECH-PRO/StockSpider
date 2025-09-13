@@ -13,6 +13,9 @@ import {
   AlertCircle,
   Menu,
   X,
+  Clock,
+  ShoppingCart,
+  CheckCircle,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -31,7 +34,9 @@ const Sidebar = ({ currentPage, onPageChange, lowStockCount, isCollapsed, onTogg
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
     { id: 'components', label: 'Composants', icon: Package },
     { id: 'products', label: 'Produits finis', icon: Box },
-    { id: 'assembly', label: 'Assembler', icon: Wrench },
+    { id: 'assembly-in-progress', label: 'Produits en cours d\'assemblage', icon: Clock },
+    { id: 'components-to-buy', label: 'Composants à acheter', icon: ShoppingCart },
+    { id: 'assembly', label: 'Produits assemblés', icon: CheckCircle },
     { id: 'movements', label: 'Stock & mouvements', icon: TrendingUp },
     { id: 'costs', label: 'Coûts & marges', icon: DollarSign },
     { id: 'suppliers', label: 'Fournisseurs', icon: Truck },

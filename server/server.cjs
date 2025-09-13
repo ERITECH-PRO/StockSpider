@@ -9,6 +9,12 @@ const authRoutes = require('./routes/auth.cjs');
 const componentRoutes = require('./routes/components.cjs');
 const productRoutes = require('./routes/products.cjs');
 const dashboardRoutes = require('./routes/dashboard.cjs');
+const assemblyRoutes = require('./routes/assembly.cjs');
+const stockRoutes = require('./routes/stock.cjs');
+const costsRoutes = require('./routes/costs.cjs');
+const supplierRoutes = require('./routes/suppliers.cjs');
+const userRoutes = require('./routes/users.cjs');
+const settingsRoutes = require('./routes/settings.cjs');
 
 const app = express();
 
@@ -30,6 +36,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/components', componentRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/assembly', assemblyRoutes);
+app.use('/api/stock', stockRoutes);
+app.use('/api/costs', costsRoutes);
+app.use('/api/suppliers', supplierRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Route de test
 app.get('/api/health', (req, res) => {

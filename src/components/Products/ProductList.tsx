@@ -1,18 +1,19 @@
  
-import { Edit2, Box, Wrench, Trash2, Plus } from 'lucide-react';
+import { Edit2, Box, Wrench, Trash2, Download, Upload } from 'lucide-react';
 import { Product } from '../../types';
 import { useData } from '../../hooks/useData';
 import { useToast } from '../../hooks/useToast';
 import ProductModal from './ProductModal';
 import ConfirmDialog from '../UI/ConfirmDialog';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
 
 interface ProductListProps {
   searchQuery: string;
 }
 
 const ProductList = ({ searchQuery }: ProductListProps) => {
-  const { products, components, updateStock, deleteProduct, assembleProduct } = useData();
+  const { products, components, deleteProduct, addProductToAssembly, addProduct, updateProduct } = useData();
   const { showSuccess, showError, showInfo } = useToast();
   
   const [productModal, setProductModal] = useState<{ show: boolean; product: Product | null }>({
@@ -24,6 +25,25 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
     productId: '',
     productName: ''
   });
+  const [assemblyQuantities, setAssemblyQuantities] = useState<{ [productId: string]: number }>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fonction pour générer un ID court pour les produits
+  const generateShortProductId = (existingProducts: Product[]): string => {
+    // Trouver le plus grand numéro existant
+    let maxNumber = 0;
+    existingProducts.forEach(prod => {
+      if (prod.id.startsWith('PR')) {
+        const number = parseInt(prod.id.substring(2));
+        if (!isNaN(number) && number > maxNumber) {
+          maxNumber = number;
+        }
+      }
+    });
+    
+    // Retourner le prochain ID disponible
+    return `PR${maxNumber + 1}`;
+  };
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -35,51 +55,66 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
     return component ? component.designation : 'Composant introuvable';
   };
 
-  const calculateProductCost = (product: Product) => {
-    const baseCost = product.components.reduce((total, pc) => {
+  // Prix d'achat unitaire (somme des composants uniquement)
+  const calculateUnitPurchasePrice = (product: Product) => {
+    return product.components.reduce((total, pc) => {
       const component = components.find(c => c.id === pc.componentId);
       const unitPrice = component ? Number(component.unitPrice) || 0 : 0;
       const qty = Number(pc.quantity) || 0;
       return total + unitPrice * qty;
     }, 0);
-    return baseCost + (Number(product.productionCost) || 0);
   };
 
-  const getMargin = (product: Product) => {
-    const cost = calculateProductCost(product);
-    const price = Number(product.sellingPrice) || 0;
-    if (price <= 0) return '0.0';
-    return (((price - cost) / price) * 100).toFixed(1);
+  // Prix d'achat total (unitaire × quantité à assembler)
+  const calculateTotalPurchasePrice = (product: Product) => {
+    const unitPrice = calculateUnitPurchasePrice(product);
+    const quantity = assemblyQuantities[product.id] || 1;
+    return unitPrice * quantity;
   };
 
   const canAssemble = (product: Product) => {
+    const quantity = assemblyQuantities[product.id] || 1;
     return product.components.every(pc => {
       const component = components.find(c => c.id === pc.componentId);
-      return component && component.quantity >= pc.quantity;
+      const requiredQuantity = (Number(pc.quantity) || 0) * quantity;
+      return component && component.quantity >= requiredQuantity;
     });
   };
 
-  const handleAssemble = async (product: Product) => {
-    if (!canAssemble(product)) {
-      showError('Assemblage impossible', 'Stock insuffisant pour certains composants');
-      return;
-    }
+  const handleQuantityChange = (productId: string, quantity: number) => {
+    setAssemblyQuantities(prev => ({
+      ...prev,
+      [productId]: Math.max(1, quantity)
+    }));
+  };
 
+  const handleAssemble = async (product: Product) => {
+    const quantity = assemblyQuantities[product.id] || 1;
+    
     try {
-      const success = await assembleProduct(product.id);
-      if (success) {
-        showSuccess('Produit assemblé', `${product.name} assemblé avec succès`);
-        showInfo('Stock mis à jour', 'Le produit a été ajouté à la liste des assemblés');
+      // Utiliser la nouvelle logique : ajouter à l'assemblage même si des composants manquent
+      await addProductToAssembly(product.id, quantity);
+      
+      // Vérifier si tous les composants sont disponibles pour un assemblage immédiat
+      const canAssembleNow = canAssemble(product);
+      
+      if (canAssembleNow) {
+        showInfo(
+          'Produit ajouté à l\'assemblage', 
+          `${product.name} peut être assemblé immédiatement. Consultez la page "Produits en cours d'assemblage".`
+        );
+      } else {
+        showInfo(
+          'Produit ajouté à l\'assemblage', 
+          `${product.name} ajouté avec des composants manquants. Consultez la page "Composants à acheter".`
+        );
       }
     } catch (error) {
-      console.error('Erreur assemblage:', error);
-      showError('Erreur', 'Impossible d\'assembler le produit');
+      console.error('Erreur ajout à l\'assemblage:', error);
+      showError('Erreur', 'Impossible d\'ajouter le produit à l\'assemblage');
     }
   };
 
-  const handleAddProduct = () => {
-    setProductModal({ show: true, product: null });
-  };
 
   const handleEditProduct = (product: Product) => {
     setProductModal({ show: true, product });
@@ -108,26 +143,244 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
     }
   };
 
+  // Fonction d'export Excel
+  const exportToExcel = () => {
+    // Trouver le nombre maximum de composants pour dimensionner les colonnes
+    const maxComponents = Math.max(...filteredProducts.map(p => p.components.length), 1);
+    
+    const exportData = filteredProducts.map(product => {
+      const unitPurchasePrice = calculateUnitPurchasePrice(product);
+      const totalPurchasePrice = calculateTotalPurchasePrice(product);
+      
+      // Créer l'objet de base
+      const baseData: any = {
+        'Nom du produit': product.name,
+        'Description': product.description,
+        'Prix de vente (€)': Number(product.sellingPrice || 0),
+        'Coût d\'achat unitaire (€)': unitPurchasePrice,
+        'Coût d\'achat total (€)': totalPurchasePrice,
+        'Marge (€)': Number(product.sellingPrice || 0) - unitPurchasePrice,
+        'Marge (%)': unitPurchasePrice > 0 ? (((Number(product.sellingPrice || 0) - unitPurchasePrice) / unitPurchasePrice) * 100).toFixed(2) : 0,
+        'Nombre de composants': product.components.length,
+        'Date de création': new Date(product.createdAt).toLocaleDateString('fr-FR')
+      };
+
+      // Ajouter les colonnes de composants
+      for (let i = 0; i < maxComponents; i++) {
+        const component = product.components[i];
+        if (component) {
+          const comp = components.find(c => c.id === component.componentId);
+          baseData[`Composant ${i + 1} - Nom`] = comp ? comp.designation : 'Composant inconnu';
+          baseData[`Composant ${i + 1} - Quantité`] = component.quantity;
+          baseData[`Composant ${i + 1} - ID`] = component.componentId;
+        } else {
+          baseData[`Composant ${i + 1} - Nom`] = '';
+          baseData[`Composant ${i + 1} - Quantité`] = '';
+          baseData[`Composant ${i + 1} - ID`] = '';
+        }
+      }
+
+      return baseData;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Produits finis');
+    
+    // Ajuster la largeur des colonnes
+    const colWidths = [
+      { wch: 25 }, // Nom du produit
+      { wch: 30 }, // Description
+      { wch: 15 }, // Prix de vente
+      { wch: 20 }, // Coût d'achat unitaire
+      { wch: 18 }, // Coût d'achat total
+      { wch: 12 }, // Marge
+      { wch: 12 }, // Marge %
+      { wch: 15 }, // Nombre de composants
+      { wch: 12 }  // Date de création
+    ];
+
+    // Ajouter les largeurs pour les colonnes de composants
+    for (let i = 0; i < maxComponents; i++) {
+      colWidths.push({ wch: 20 }); // Composant X - Nom
+      colWidths.push({ wch: 12 }); // Composant X - Quantité
+      colWidths.push({ wch: 15 }); // Composant X - ID
+    }
+
+    ws['!cols'] = colWidths;
+
+    XLSX.writeFile(wb, `produits-finis-${new Date().toISOString().split('T')[0]}.xlsx`);
+    showSuccess('Export réussi', 'Fichier Excel généré avec succès');
+  };
+
+  // Fonction d'import Excel
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        let addedCount = 0;
+        let updatedCount = 0;
+        let errorCount = 0;
+
+        jsonData.forEach((row: any, index: number) => {
+          try {
+            const productData = {
+              name: row['Nom du produit'] || row['nom_produit'] || row['name'] || '',
+              description: row['Description'] || row['description'] || '',
+              sellingPrice: Number(row['Prix de vente (€)'] || row['prix_vente'] || row['sellingPrice'] || 0),
+              components: [] as any[]
+            };
+
+            if (!productData.name) {
+              errorCount++;
+              return;
+            }
+
+            // Parser les composants depuis les colonnes
+            const productComponents: any[] = [];
+            let componentIndex = 1;
+            
+            while (true) {
+              const componentName = row[`Composant ${componentIndex} - Nom`];
+              const componentQuantity = row[`Composant ${componentIndex} - Quantité`];
+              const componentId = row[`Composant ${componentIndex} - ID`];
+              
+              if (!componentName && !componentId) {
+                break; // Plus de composants
+              }
+              
+              if (componentName && componentQuantity) {
+                // Chercher le composant par ID ou par nom
+                let foundComponent = null;
+                if (componentId) {
+                  foundComponent = components.find(c => c.id === componentId);
+                }
+                if (!foundComponent && componentName) {
+                  foundComponent = components.find(c => 
+                    c.designation.toLowerCase() === componentName.toLowerCase() ||
+                    c.name.toLowerCase() === componentName.toLowerCase()
+                  );
+                }
+                
+                if (foundComponent) {
+                  productComponents.push({
+                    componentId: foundComponent.id,
+                    quantity: Number(componentQuantity)
+                  });
+                } else {
+                  console.warn(`Composant non trouvé: ${componentName} (ligne ${index + 2})`);
+                }
+              }
+              
+              componentIndex++;
+            }
+            
+            productData.components = productComponents;
+
+            // Vérifier si le produit existe déjà
+            const existingProduct = products.find(p => p.name === productData.name);
+
+            if (existingProduct) {
+              // Mettre à jour le produit existant
+              const updatedProduct = {
+                ...existingProduct,
+                ...productData,
+                id: existingProduct.id // Garder l'ID existant
+              };
+              updateProduct(updatedProduct.id, updatedProduct);
+              updatedCount++;
+            } else {
+              // Créer un nouveau produit avec ID court
+              const newId = generateShortProductId(products);
+              const newProduct: Product = {
+                id: newId,
+                ...productData,
+                productNumber: '',
+                productionCost: 0,
+                quantity: 0,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              };
+              addProduct(newProduct);
+              addedCount++;
+            }
+          } catch (error) {
+            console.error(`Erreur ligne ${index + 2}:`, error);
+            errorCount++;
+          }
+        });
+
+        // Afficher le résumé
+        const totalComponents = jsonData.reduce((total: number, row: any) => {
+          let componentCount = 0;
+          let componentIndex = 1;
+          while (row[`Composant ${componentIndex} - Nom`]) {
+            componentCount++;
+            componentIndex++;
+          }
+          return total + componentCount;
+        }, 0);
+
+        if (errorCount > 0) {
+          showError('Import terminé avec erreurs', `${addedCount} produits ajoutés, ${updatedCount} mis à jour, ${errorCount} erreurs. ${totalComponents} composants traités.`);
+        } else {
+          showSuccess('Import réussi', `${addedCount} produits ajoutés, ${updatedCount} mis à jour. ${totalComponents} composants traités.`);
+        }
+
+        // Réinitialiser l'input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } catch (error) {
+        console.error('Erreur lors de l\'import:', error);
+        showError('Erreur d\'import', 'Impossible de lire le fichier Excel');
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+  };
+
   return (
     <div className="space-y-6 p-6 bg-3s-gray-light min-h-full">
-      {/* Header avec bouton d'ajout */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-3s-black font-inter">Produits finis</h2>
-          <p className="text-3s-gray-medium font-inter">Gérez vos produits finis et leurs assemblages</p>
+      {/* Boutons d'export/import */}
+      <div className="card-3s p-4 animate-fade-in">
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={exportToExcel}
+            className="btn-3s-primary px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span className="font-inter">Exporter Excel</span>
+          </button>
+          
+          <label className="btn-3s-secondary px-4 py-2 rounded-lg flex items-center gap-2 transition-colors cursor-pointer">
+            <Upload className="w-4 h-4" />
+            <span className="font-inter">Importer Excel</span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileImport}
+              className="hidden"
+            />
+          </label>
         </div>
-        <button
-          onClick={handleAddProduct}
-          className="btn-3s-primary flex items-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          <span className="font-inter">Ajouter un produit</span>
-        </button>
       </div>
+
       {filteredProducts.map((product) => {
-        const totalCost = calculateProductCost(product);
-        const margin = getMargin(product);
-        const canBeAssembled = canAssemble(product);
+        const unitPurchasePrice = calculateUnitPurchasePrice(product);
+        const totalPurchasePrice = calculateTotalPurchasePrice(product);
+        // Le bouton est toujours activé selon le nouveau workflow
+        const assemblyQuantity = assemblyQuantities[product.id] || 1;
 
         return (
           <div key={product.id} className="card-3s p-6 animate-fade-in hover:shadow-card-hover transition-all duration-200">
@@ -159,12 +412,7 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
                 </button>
                 <button 
                   onClick={() => handleAssemble(product)}
-                  className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-                    canBeAssembled
-                      ? 'btn-3s-primary'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
-                  disabled={!canBeAssembled}
+                  className="btn-3s-primary px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
                 >
                   <Wrench className="w-4 h-4" />
                   <span className="font-inter">Assembler</span>
@@ -172,25 +420,26 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <p className="text-sm text-blue-600 font-medium font-inter">Stock disponible</p>
-                <p className="text-2xl font-bold text-blue-700 mt-1 font-inter">{product.quantity}</p>
+                <p className="text-sm text-blue-600 font-medium font-inter">Quantité à assembler</p>
+                <input
+                  type="number"
+                  min="1"
+                  value={assemblyQuantity}
+                  onChange={(e) => handleQuantityChange(product.id, parseInt(e.target.value) || 1)}
+                  className="text-2xl font-bold text-blue-700 mt-1 font-inter bg-transparent border-none outline-none w-full"
+                />
               </div>
               
               <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                <p className="text-sm text-green-600 font-medium font-inter">Prix de vente</p>
-                <p className="text-2xl font-bold text-green-700 mt-1 font-inter">{(Number(product.sellingPrice) || 0).toFixed(2)}€</p>
+                <p className="text-sm text-green-600 font-medium font-inter">Prix d'achat</p>
+                <p className="text-2xl font-bold text-green-700 mt-1 font-inter">{unitPurchasePrice.toFixed(2)}€</p>
               </div>
               
               <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                <p className="text-sm text-orange-600 font-medium font-inter">Coût total</p>
-                <p className="text-2xl font-bold text-orange-700 mt-1 font-inter">{totalCost.toFixed(2)}€</p>
-              </div>
-              
-              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                <p className="text-sm text-purple-600 font-medium font-inter">Marge</p>
-                <p className="text-2xl font-bold text-purple-700 mt-1 font-inter">{margin}%</p>
+                <p className="text-sm text-orange-600 font-medium font-inter">Prix d'achat total</p>
+                <p className="text-2xl font-bold text-orange-700 mt-1 font-inter">{totalPurchasePrice.toFixed(2)}€</p>
               </div>
             </div>
 
@@ -199,7 +448,8 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {product.components.map((pc, index) => {
                   const component = components.find(c => c.id === pc.componentId);
-                  const hasStock = component && component.quantity >= pc.quantity;
+                  const requiredQuantity = (Number(pc.quantity) || 0) * assemblyQuantity;
+                  const hasStock = component && component.quantity >= requiredQuantity;
                   
                   return (
                     <div key={pc.componentId || index} className={`p-4 rounded-lg border transition-all duration-200 hover:shadow-card-hover ${
@@ -208,14 +458,16 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
                       <div className="flex justify-between items-center">
                         <div>
                           <p className="font-medium text-3s-black font-inter">{getComponentName(pc.componentId)}</p>
-                          <p className="text-sm text-3s-gray-medium font-inter">Quantité requise: {pc.quantity}</p>
+                          <p className="text-sm text-3s-gray-medium font-inter">
+                            Quantité requise: {pc.quantity} × {assemblyQuantity} = {requiredQuantity}
+                          </p>
                         </div>
                         <div className="text-right">
                           <p className={`text-sm font-medium font-inter ${hasStock ? 'text-green-600' : 'text-3s-red'}`}>
                             {component ? `${component.quantity} dispo` : 'N/A'}
                           </p>
                           <p className="text-xs text-gray-500 font-inter">
-                            {component ? `${((Number(component.unitPrice) || 0) * (Number(pc.quantity) || 0)).toFixed(2)}€` : '-'}
+                            {component ? `${((Number(component.unitPrice) || 0) * requiredQuantity).toFixed(2)}€` : '-'}
                           </p>
                         </div>
                       </div>
@@ -225,12 +477,31 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
               </div>
             </div>
 
-            {!canBeAssembled && (
-              <div className="mt-4 p-4 bg-red-50 border border-3s-red rounded-lg">
-                <p className="text-3s-red font-medium font-inter">⚠️ Impossible d'assembler ce produit</p>
-                <p className="text-red-600 text-sm mt-1 font-inter">
-                  Certains composants ne sont pas disponibles en quantité suffisante.
+            {!canAssemble(product) && (
+              <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                <p className="text-orange-600 font-medium font-inter">ℹ️ Composants manquants détectés</p>
+                <p className="text-orange-600 text-sm mt-1 font-inter">
+                  Certains composants ne sont pas disponibles en quantité suffisante pour assembler {assemblyQuantity} unité{assemblyQuantity > 1 ? 's' : ''}.
+                  <br />
+                  <strong>Le produit sera ajouté à l'assemblage et les composants manquants à la liste d'achat.</strong>
                 </p>
+                <div className="mt-2 text-xs text-orange-500 font-inter">
+                  Composants manquants : {product.components
+                    .filter(pc => {
+                      const component = components.find(c => c.id === pc.componentId);
+                      if (!component) return false;
+                      const requiredQuantity = (Number(pc.quantity) || 0) * assemblyQuantity;
+                      return component.quantity < requiredQuantity;
+                    })
+                    .map(pc => {
+                      const component = components.find(c => c.id === pc.componentId);
+                      if (!component) return null;
+                      const requiredQuantity = (Number(pc.quantity) || 0) * assemblyQuantity;
+                      return `${component.designation}: ${requiredQuantity} requis, ${component.quantity} disponible`;
+                    })
+                    .filter(Boolean)
+                    .join(' • ')}
+                </div>
               </div>
             )}
           </div>

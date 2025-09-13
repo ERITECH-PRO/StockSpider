@@ -119,9 +119,17 @@ class ApiService {
     });
   }
 
-  async assembleProduct(productId: string): Promise<void> {
+  async updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
+    return this.request<Product>(`/products/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async assembleProduct(productId: string, quantity: number = 1): Promise<void> {
     await this.request(`/products/${productId}/assemble`, {
       method: 'POST',
+      body: JSON.stringify({ quantity }),
     });
   }
 

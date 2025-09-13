@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Package } from 'lucide-react';
+import { X, Package, Upload } from 'lucide-react';
 import { Component, ComponentCategory } from '../../types';
 import { useData } from '../../hooks/useData';
 import { useToast } from '../../hooks/useToast';
+import ComponentImportModal from './ComponentImportModal';
 
 interface ComponentModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
   const { addComponent, updateComponent, suppliers } = useData();
   const { showSuccess } = useToast();
   const isEdit = !!component;
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const [formData, setFormData] = useState({
     designation: component?.designation || '',
@@ -150,6 +152,27 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Import Button - Only show for new components */}
+          {!isEdit && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-blue-900">Importation en masse</h3>
+                  <p className="text-sm text-blue-700">
+                    Importez plusieurs composants depuis un fichier BOM (Excel, CSV, TXT)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowImportModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  Importer BOM
+                </button>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-3s-black mb-2 font-inter">
@@ -299,6 +322,12 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
             </button>
           </div>
         </form>
+
+        {/* Import Modal */}
+        <ComponentImportModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+        />
       </div>
     </div>
   );

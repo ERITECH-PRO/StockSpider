@@ -25,6 +25,7 @@ export interface Product {
   id: string;
   name: string;
   description: string;
+  productNumber: string;
   components: ProductComponent[];
   productionCost: number;
   sellingPrice: number;
@@ -43,6 +44,41 @@ export interface AssembledProduct {
   assembledBy: string;
   totalCost: number;
   sellingPrice: number;
+}
+
+export interface ProductInAssembly {
+  id: string;
+  productId: string;
+  productName: string;
+  productDescription: string;
+  quantityToAssemble: number;
+  componentsRequired: Array<{
+    componentId: string;
+    componentName: string;
+    componentDesignation: string;
+    requiredQuantity: number;
+    availableQuantity: number;
+    isAvailable: boolean;
+  }>;
+  createdAt: string;
+  createdBy: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+}
+
+export interface ComponentToBuy {
+  id: string;
+  componentId: string;
+  componentName: string;
+  componentDesignation: string;
+  requiredQuantity: number;
+  availableQuantity: number;
+  quantityToBuy: number;
+  unitPrice: number;
+  totalCost: number;
+  productInAssemblyId: string;
+  productName: string;
+  createdAt: string;
+  status: 'pending' | 'ordered' | 'received' | 'cancelled';
 }
 
 export interface ProductComponent {

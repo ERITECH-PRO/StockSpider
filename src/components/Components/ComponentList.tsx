@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
-import { Edit2, Trash2, AlertTriangle, Package, Plus, Minus } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Edit2, Trash2, AlertTriangle, Package, Plus, Minus, Download, Upload } from 'lucide-react';
 import { Component, ComponentCategory } from '../../types';
 import { useData } from '../../hooks/useData';
 import { useToast } from '../../hooks/useToast';
 import ConfirmDialog from '../UI/ConfirmDialog';
 import ComponentModal from './ComponentModal';
+import * as XLSX from 'xlsx';
 
 interface ComponentListProps {
   searchQuery: string;
 }
 
 const ComponentList = ({ searchQuery }: ComponentListProps) => {
-  const { components, deleteComponent, updateStock } = useData();
+  const { components, deleteComponent, updateStock, addComponent, updateComponent } = useData();
   const { showSuccess, showError } = useToast();
   const [selectedCategory, setSelectedCategory] = useState<ComponentCategory | 'all'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'quantity' | 'price'>('name');
@@ -26,11 +27,160 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
   });
   const [stockAdjustments, setStockAdjustments] = useState<Record<string, number>>({});
   const [updatingStocks, setUpdatingStocks] = useState<Set<string>>(new Set());
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categories: (ComponentCategory | 'all')[] = [
     'all', 'condensateur', 'resistance', 'relais', 'microcontroleur', 
     'connecteur', 'inducteur', 'diode', 'transistor', 'capteur', 'autre'
   ];
+
+  // Fonction pour générer un ID court pour les composants
+  const generateShortComponentId = (existingComponents: Component[]): string => {
+    // Trouver le plus grand numéro existant
+    let maxNumber = 0;
+    existingComponents.forEach(comp => {
+      if (comp.id.startsWith('CP')) {
+        const number = parseInt(comp.id.substring(2));
+        if (!isNaN(number) && number > maxNumber) {
+          maxNumber = number;
+        }
+      }
+    });
+    
+    // Retourner le prochain ID disponible
+    return `CP${maxNumber + 1}`;
+  };
+
+  // Fonction d'export Excel
+  const exportToExcel = () => {
+    const exportData = filteredComponents.map(component => ({
+      'Nom': component.name,
+      'Désignation': component.designation,
+      'Numéro de produit': component.productNumber,
+      'Catégorie': component.category,
+      'Footprint': component.footprint || '',
+      'Quantité en stock': component.quantity,
+      'Prix unitaire (€)': Number(component.unitPrice || 0),
+      'Valeur totale (€)': Number(component.unitPrice || 0) * component.quantity,
+      'Fournisseur': component.supplier || '',
+      'Lien d\'achat': (component as any).purchaseLink || '',
+      'Date de création': new Date(component.createdAt).toLocaleDateString('fr-FR')
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Composants');
+    
+    // Ajuster la largeur des colonnes
+    const colWidths = [
+      { wch: 20 }, // Nom
+      { wch: 25 }, // Désignation
+      { wch: 20 }, // Numéro de produit
+      { wch: 15 }, // Catégorie
+      { wch: 12 }, // Footprint
+      { wch: 12 }, // Quantité en stock
+      { wch: 12 }, // Prix unitaire
+      { wch: 12 }, // Valeur totale
+      { wch: 15 }, // Fournisseur
+      { wch: 20 }, // Lien d'achat
+      { wch: 12 }  // Date de création
+    ];
+    ws['!cols'] = colWidths;
+
+    XLSX.writeFile(wb, `composants-${new Date().toISOString().split('T')[0]}.xlsx`);
+    showSuccess('Export réussi', 'Fichier Excel généré avec succès');
+  };
+
+  // Fonction d'import Excel
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        let addedCount = 0;
+        let updatedCount = 0;
+        let errorCount = 0;
+
+        jsonData.forEach((row: any, index: number) => {
+          try {
+            const componentData = {
+              name: row['Nom'] || row['nom'] || '',
+              designation: row['Désignation'] || row['designation'] || '',
+              productNumber: row['Numéro de produit'] || row['numero_produit'] || row['productNumber'] || '',
+              category: (row['Catégorie'] || row['categorie'] || 'autre') as ComponentCategory,
+              footprint: row['Footprint'] || row['footprint'] || '',
+              quantity: Number(row['Quantité en stock'] || row['quantite'] || row['quantity'] || 0),
+              unitPrice: Number(row['Prix unitaire (€)'] || row['prix_unitaire'] || row['unitPrice'] || 0),
+              supplier: row['Fournisseur'] || row['fournisseur'] || row['supplier'] || '',
+              purchaseLink: row['Lien d\'achat'] || row['lien_achat'] || row['purchaseLink'] || ''
+            };
+
+            if (!componentData.name || !componentData.designation) {
+              errorCount++;
+              return;
+            }
+
+            // Vérifier si le composant existe déjà
+            const existingComponent = components.find(c => 
+              c.productNumber === componentData.productNumber || 
+              (c.name === componentData.name && c.designation === componentData.designation)
+            );
+
+            if (existingComponent) {
+              // Mettre à jour le composant existant
+              const updatedComponent = {
+                ...existingComponent,
+                ...componentData,
+                id: existingComponent.id // Garder l'ID existant
+              };
+              updateComponent(updatedComponent.id, updatedComponent);
+              updatedCount++;
+            } else {
+              // Créer un nouveau composant avec ID court
+              const newId = generateShortComponentId(components);
+              const newComponent: Component = {
+                id: newId,
+                ...componentData,
+                minStock: 0,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              };
+              addComponent(newComponent);
+              addedCount++;
+            }
+          } catch (error) {
+            console.error(`Erreur ligne ${index + 2}:`, error);
+            errorCount++;
+          }
+        });
+
+        // Afficher le résumé
+        if (errorCount > 0) {
+          showError('Import terminé avec erreurs', `${addedCount} composants ajoutés, ${updatedCount} mis à jour, ${errorCount} erreurs`);
+        } else {
+          showSuccess('Import réussi', `${addedCount} composants ajoutés, ${updatedCount} mis à jour`);
+        }
+
+        // Réinitialiser l'input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } catch (error) {
+        console.error('Erreur lors de l\'import:', error);
+        showError('Erreur d\'import', 'Impossible de lire le fichier Excel');
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+  };
 
   const filteredComponents = components
     .filter(component => {
@@ -209,6 +359,29 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
               <option value="quantity">Quantité</option>
               <option value="price">Prix</option>
             </select>
+          </div>
+
+          {/* Boutons d'export/import */}
+          <div className="flex gap-2 ml-auto">
+            <button
+              onClick={exportToExcel}
+              className="btn-3s-primary px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              <span className="font-inter">Exporter Excel</span>
+            </button>
+            
+            <label className="btn-3s-secondary px-4 py-2 rounded-lg flex items-center gap-2 transition-colors cursor-pointer">
+              <Upload className="w-4 h-4" />
+              <span className="font-inter">Importer Excel</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileImport}
+                className="hidden"
+              />
+            </label>
           </div>
         </div>
       </div>

@@ -13,6 +13,7 @@ router.get('/', auth, async (req, res) => {
         id,
         name,
         description,
+        product_number as productNumber,
         production_cost as productionCost,
         selling_price as sellingPrice,
         quantity,
@@ -51,14 +52,15 @@ router.post('/', auth, async (req, res) => {
     const {
       name,
       description = '',
+      productNumber = '',
       components = [],
       productionCost = 0,
       sellingPrice = 0,
       quantity = 0
     } = req.body;
 
-    if (!name || !sellingPrice) {
-      return res.status(400).json({ error: 'Nom et prix de vente requis' });
+    if (!name) {
+      return res.status(400).json({ error: 'Nom requis' });
     }
 
     const productId = uuidv4();
@@ -66,9 +68,9 @@ router.post('/', auth, async (req, res) => {
     await db.transaction(async (connection) => {
       // Créer le produit
       await connection.execute(`
-        INSERT INTO products (id, name, description, production_cost, selling_price, quantity)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `, [productId, name, description, productionCost, sellingPrice, quantity]);
+        INSERT INTO products (id, name, description, product_number, production_cost, selling_price, quantity)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [productId, name, description, productNumber, productionCost, sellingPrice, quantity]);
 
       // Ajouter les composants
       for (const component of components) {
@@ -86,6 +88,7 @@ router.post('/', auth, async (req, res) => {
         id,
         name,
         description,
+        product_number as productNumber,
         production_cost as productionCost,
         selling_price as sellingPrice,
         quantity,

@@ -57,11 +57,20 @@ router.post('/', auth, async (req, res) => {
       quantity = 0
     } = req.body;
 
-    if (!name || !sellingPrice) {
+    if (!name || sellingPrice === undefined || sellingPrice === null) {
       return res.status(400).json({ error: 'Nom et prix de vente requis' });
     }
 
-    const productId = randomUUID();
+    // Générer un ID court pour le produit
+    const existingProducts = await db.query('SELECT id FROM products WHERE id LIKE "PR%"');
+    let maxNumber = 0;
+    existingProducts.forEach(prod => {
+      const number = parseInt(prod.id.substring(2));
+      if (!isNaN(number) && number > maxNumber) {
+        maxNumber = number;
+      }
+    });
+    const productId = `PR${maxNumber + 1}`;
 
     await db.transaction(async (connection) => {
       // Créer le produit
@@ -129,6 +138,104 @@ router.post('/', auth, async (req, res) => {
     res.status(201).json(newProduct[0]);
   } catch (error) {
     console.error('❌ Erreur création produit:', error.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// PUT /api/products/:id - Mettre à jour un produit
+router.put('/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const {
+      name,
+      description = '',
+      productNumber = '',
+      components = [],
+      productionCost = 0,
+      sellingPrice = 0,
+      quantity = 0
+    } = req.body;
+
+    if (!name || sellingPrice === undefined || sellingPrice === null) {
+      return res.status(400).json({ error: 'Nom et prix de vente requis' });
+    }
+
+    await db.transaction(async (connection) => {
+      // Mettre à jour le produit
+      await connection.execute(`
+        UPDATE products 
+        SET name = ?, description = ?, product_number = ?, production_cost = ?, selling_price = ?, quantity = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [name, description, productNumber, productionCost, sellingPrice, quantity, id]);
+
+      // Supprimer les anciens composants
+      await connection.execute('DELETE FROM product_components WHERE product_id = ?', [id]);
+
+      // Ajouter les nouveaux composants
+      if (components.length > 0) {
+        // Grouper les composants par component_id et additionner les quantités
+        const componentMap = new Map();
+        for (const component of components) {
+          if (!component.componentId || !component.quantity) {
+            continue;
+          }
+          
+          const existing = componentMap.get(component.componentId);
+          if (existing) {
+            existing.quantity += component.quantity;
+          } else {
+            componentMap.set(component.componentId, {
+              componentId: component.componentId,
+              quantity: component.quantity
+            });
+          }
+        }
+        
+        // Insérer les composants groupés
+        for (const [componentId, data] of componentMap) {
+          const pcId = randomUUID();
+          await connection.execute(`
+            INSERT INTO product_components (id, product_id, component_id, quantity)
+            VALUES (?, ?, ?, ?)
+          `, [pcId, id, componentId, data.quantity]);
+        }
+      }
+    });
+
+    // Récupérer le produit mis à jour avec ses composants
+    const updatedProduct = await db.query(`
+      SELECT 
+        id,
+        name,
+        description,
+        product_number as productNumber,
+        production_cost as productionCost,
+        selling_price as sellingPrice,
+        quantity,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM products 
+      WHERE id = ?
+    `, [id]);
+
+    if (updatedProduct.length === 0) {
+      return res.status(404).json({ error: 'Produit non trouvé' });
+    }
+
+    const productComponents = await db.query(`
+      SELECT 
+        pc.component_id as componentId,
+        pc.quantity
+      FROM product_components pc
+      WHERE pc.product_id = ?
+    `, [id]);
+
+    updatedProduct[0].components = productComponents;
+
+    res.json(updatedProduct[0]);
+  } catch (error) {
+    console.error('❌ Erreur mise à jour produit:', error.message);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
