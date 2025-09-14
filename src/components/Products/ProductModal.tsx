@@ -5,6 +5,7 @@ import { useData } from '../../hooks/useData';
 import BOMImport from './BOMImport';
 import { BOMItem } from '../../utils/bomParser';
 import { useToast } from '../../hooks/useToast';
+import { formatPrice } from '../../utils/priceFormatter';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -194,7 +195,7 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
     if (newComponentsCount > 0 || existingComponentsCount > 0 || updatedComponentsCount > 0) {
       showSuccess(
         'BOM importée avec succès',
-        `${message}. Coût total: ${totalCost.toFixed(2)}€`
+        `${message}. Coût total: ${formatPrice(totalCost)}`
       );
     } else {
       showInfo('BOM importée', 'Aucun nouveau composant ajouté');
@@ -396,7 +397,7 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
                                 <div><span className="font-medium">Désignation:</span> {comp.designation}</div>
                                 <div><span className="font-medium">Footprint:</span> {comp.footprint}</div>
                                 <div><span className="font-medium">Catégorie:</span> <span className="capitalize">{comp.category}</span></div>
-                                <div><span className="font-medium">Prix unitaire:</span> {(Number(comp.unitPrice) || 0).toFixed(2)}€</div>
+                                <div><span className="font-medium">Prix unitaire:</span> {formatPrice(comp.unitPrice)}</div>
                               </div>
                             );
                           })()}
@@ -450,8 +451,8 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
               <input
                 type="number"
                 min="0"
-                step="0.01"
-                value={Number(formData.productionCost).toFixed(2)}
+                step="0.0001"
+                value={formatPrice(formData.productionCost).replace('€', '')}
                 readOnly
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
               />

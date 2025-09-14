@@ -7,6 +7,7 @@ import ProductModal from './ProductModal';
 import ConfirmDialog from '../UI/ConfirmDialog';
 import { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
+import { formatPrice } from '../../utils/priceFormatter';
 
 interface ProductListProps {
   searchQuery: string;
@@ -160,7 +161,7 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
         'Coût d\'achat unitaire (€)': unitPurchasePrice,
         'Coût d\'achat total (€)': totalPurchasePrice,
         'Marge (€)': Number(product.sellingPrice || 0) - unitPurchasePrice,
-        'Marge (%)': unitPurchasePrice > 0 ? (((Number(product.sellingPrice || 0) - unitPurchasePrice) / unitPurchasePrice) * 100).toFixed(2) : 0,
+        'Marge (%)': unitPurchasePrice > 0 ? (((Number(product.sellingPrice || 0) - unitPurchasePrice) / unitPurchasePrice) * 100).toFixed(4) : 0,
         'Nombre de composants': product.components.length,
         'Date de création': new Date(product.createdAt).toLocaleDateString('fr-FR')
       };
@@ -434,12 +435,12 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
               
               <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                 <p className="text-sm text-green-600 font-medium font-inter">Prix d'achat</p>
-                <p className="text-2xl font-bold text-green-700 mt-1 font-inter">{unitPurchasePrice.toFixed(2)}€</p>
+                <p className="text-2xl font-bold text-green-700 mt-1 font-inter">{formatPrice(unitPurchasePrice)}</p>
               </div>
               
               <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
                 <p className="text-sm text-orange-600 font-medium font-inter">Prix d'achat total</p>
-                <p className="text-2xl font-bold text-orange-700 mt-1 font-inter">{totalPurchasePrice.toFixed(2)}€</p>
+                <p className="text-2xl font-bold text-orange-700 mt-1 font-inter">{formatPrice(totalPurchasePrice)}</p>
               </div>
             </div>
 
@@ -467,7 +468,7 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
                             {component ? `${component.quantity} dispo` : 'N/A'}
                           </p>
                           <p className="text-xs text-gray-500 font-inter">
-                            {component ? `${((Number(component.unitPrice) || 0) * requiredQuantity).toFixed(2)}€` : '-'}
+                            {component ? formatPrice((Number(component.unitPrice) || 0) * requiredQuantity) : '-'}
                           </p>
                         </div>
                       </div>

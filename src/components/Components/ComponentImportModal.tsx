@@ -3,6 +3,7 @@ import { X, Upload, FileText, CheckCircle, AlertCircle, Package } from 'lucide-r
 import { parseBOMFile, validateBOMItems, BOMItem } from '../../utils/bomParser';
 import { useData } from '../../hooks/useData';
 import { useToast } from '../../hooks/useToast';
+import { formatPrice } from '../../utils/priceFormatter';
 
 interface ComponentImportModalProps {
   isOpen: boolean;
@@ -319,7 +320,7 @@ const ComponentImportModal = ({ isOpen, onClose }: ComponentImportModalProps) =>
                             <td className="px-3 py-2">{item.name}</td>
                             <td className="px-3 py-2 text-gray-600">{item.productNumber}</td>
                             <td className="px-3 py-2">{item.quantity}</td>
-                            <td className="px-3 py-2">{item.unitPrice.toFixed(2)}€</td>
+                            <td className="px-3 py-2">{formatPrice(item.unitPrice)}</td>
                             <td className="px-3 py-2">
                               <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
                                 {item.category}

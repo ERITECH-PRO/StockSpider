@@ -6,6 +6,7 @@ import { useToast } from '../../hooks/useToast';
 import ConfirmDialog from '../UI/ConfirmDialog';
 import ComponentModal from './ComponentModal';
 import * as XLSX from 'xlsx';
+import { formatPrice } from '../../utils/priceFormatter';
 
 interface ComponentListProps {
   searchQuery: string;
@@ -513,13 +514,13 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
                 
                 <div className="flex justify-between">
                   <span className="text-sm text-3s-gray-medium font-inter">Prix unitaire:</span>
-                  <span className="text-sm font-medium font-inter">{(Number(component.unitPrice) || 0).toFixed(2)}€</span>
+                  <span className="text-sm font-medium font-inter">{formatPrice(component.unitPrice)}</span>
                 </div>
                 
                 <div className="flex justify-between">
                   <span className="text-sm text-3s-gray-medium font-inter">Valeur stock:</span>
                   <span className="text-sm font-medium text-3s-blue font-inter">
-                    {(component.quantity * (Number(component.unitPrice) || 0)).toFixed(2)}€
+                    {formatPrice(component.quantity * (Number(component.unitPrice) || 0))}
                   </span>
                 </div>
                 

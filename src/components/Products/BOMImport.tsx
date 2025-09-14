@@ -4,6 +4,7 @@ import FileUpload from '../UI/FileUpload';
 import { parseBOMFile, BOMParseResult, BOMItem, validateBOMItems } from '../../utils/bomParser';
 import { useToast } from '../../hooks/useToast';
 import { ComponentCategory } from '../../types';
+import { formatPrice } from '../../utils/priceFormatter';
 
 interface BOMImportProps {
   isOpen: boolean;
@@ -249,7 +250,7 @@ R2,Résistance 1kΩ,R1K-0805,0805,200,0.015,Vishay,resistance`;
                     <div className="flex justify-between items-center">
                       <span className="font-medium text-blue-800 font-inter">Coût total estimé:</span>
                       <span className="text-lg font-bold text-blue-900 font-inter">
-                        {calculateTotalCost().toFixed(2)}€
+                        {formatPrice(calculateTotalCost())}
                       </span>
                     </div>
                   </div>
@@ -340,13 +341,13 @@ R2,Résistance 1kΩ,R1K-0805,0805,200,0.015,Vishay,resistance`;
                                 <input
                                   type="number"
                                   min="0"
-                                  step="0.01"
+                                  step="0.0001"
                                   value={item.unitPrice}
                                   onChange={(e) => handleEditItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
                                   className="w-20 px-2 py-1 border border-gray-300 rounded text-xs"
                                 />
                               ) : (
-                                <span className="font-inter">{item.unitPrice.toFixed(2)}€</span>
+                                <span className="font-inter">{formatPrice(item.unitPrice)}</span>
                               )}
                             </td>
                             <td className="px-3 py-2">

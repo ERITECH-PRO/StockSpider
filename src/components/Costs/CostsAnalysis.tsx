@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, TrendingUp, TrendingDown, Package, Calculator, BarChart3 } from 'lucide-react';
 import { useData } from '../../hooks/useData';
+import { formatPriceCurrency, formatPercentage } from '../../utils/priceFormatter';
 
 interface CostAnalysis {
   componentCosts: {
@@ -96,16 +97,7 @@ const CostsAnalysis = () => {
     setLoading(false);
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(price);
-  };
-
-  const formatPercentage = (percentage: number) => {
-    return `${percentage.toFixed(1)}%`;
-  };
+  // Utilisation des fonctions de formatage centralisées avec 4 décimales
 
   const getMarginColor = (margin: number) => {
     if (margin > 0) return 'text-green-600';
@@ -159,7 +151,7 @@ const CostsAnalysis = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Valeur totale composants</p>
               <p className="text-2xl font-bold text-gray-900">
-                {formatPrice(analysis.componentCosts.totalComponentValue)}
+                {formatPriceCurrency(analysis.componentCosts.totalComponentValue)}
               </p>
             </div>
           </div>
@@ -236,15 +228,15 @@ const CostsAnalysis = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatPrice(product.productionCost)}
+                    {formatPriceCurrency(product.productionCost)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatPrice(product.sellingPrice)}
+                    {formatPriceCurrency(product.sellingPrice)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className={`flex items-center text-sm ${getMarginColor(product.margin)}`}>
                       {getMarginIcon(product.margin)}
-                      <span className="ml-1">{formatPrice(product.margin)}</span>
+                      <span className="ml-1">{formatPriceCurrency(product.margin)}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -301,10 +293,10 @@ const CostsAnalysis = () => {
                     {category.totalQuantity}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatPrice(category.totalValue)}
+                    {formatPriceCurrency(category.totalValue)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatPrice(category.averagePrice)}
+                    {formatPriceCurrency(category.averagePrice)}
                   </td>
                 </tr>
               ))}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { TrendingUp, Package, ArrowUp, ArrowDown, RotateCcw, User, Clock } from 'lucide-react';
 import { useData } from '../../hooks/useData';
 import { useToast } from '../../hooks/useToast';
+import { formatPriceCurrency } from '../../utils/priceFormatter';
 
 interface StockMovement {
   id: string;
@@ -141,12 +142,7 @@ const StockMovements = () => {
     return new Date(dateString).toLocaleString('fr-FR');
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(price);
-  };
+  // Utilisation de la fonction de formatage centralisée avec 4 décimales
 
   if (loading) {
     return (
@@ -228,7 +224,7 @@ const StockMovements = () => {
             <input
               type="number"
               min="0"
-              step="0.01"
+              step="0.0001"
               value={movementPrice}
               onChange={(e) => setMovementPrice(parseFloat(e.target.value) || 0)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -327,7 +323,7 @@ const StockMovements = () => {
                       {movement.quantity}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {movement.unitPrice ? formatPrice(movement.unitPrice) : '-'}
+                      {movement.unitPrice ? formatPriceCurrency(movement.unitPrice) : '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {movement.reason}

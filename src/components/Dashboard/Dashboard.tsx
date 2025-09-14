@@ -1,6 +1,7 @@
 import React from 'react';
 import { Package, Box, AlertTriangle, DollarSign, TrendingUp, TrendingDown, Activity, BarChart3 } from 'lucide-react';
 import { useData } from '../../hooks/useData';
+import { formatPriceCurrency } from '../../utils/priceFormatter';
 
 const Dashboard = () => {
   const { getDashboardStats, getLowStockComponents } = useData();
@@ -68,7 +69,7 @@ const Dashboard = () => {
         />
         <StatCard
           title="Valeur stock"
-          value={`${stats.totalValue.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`}
+          value={formatPriceCurrency(stats.totalValue)}
           icon={DollarSign}
           color="text-purple-600"
           trend={15}

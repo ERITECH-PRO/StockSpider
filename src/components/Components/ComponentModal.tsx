@@ -266,7 +266,7 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
                 type="number"
                 required
                 min="0"
-                step="0.01"
+                step="0.0001"
                 value={formData.unitPrice}
                 onChange={(e) => handleChange('unitPrice', parseFloat(e.target.value) || 0)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter transition-all duration-200 hover:shadow-card-hover"

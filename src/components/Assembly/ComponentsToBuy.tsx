@@ -3,6 +3,7 @@ import { ShoppingCart, CheckCircle, X, Search, Filter, Download, ExternalLink } 
 import { useDataContext } from '../../contexts/DataContext';
 import { ComponentToBuy } from '../../types';
 import * as XLSX from 'xlsx';
+import { formatPrice } from '../../utils/priceFormatter';
 
 const ComponentsToBuy: React.FC = () => {
   const { components } = useDataContext();
@@ -293,7 +294,7 @@ const ComponentsToBuy: React.FC = () => {
           {filteredComponents.length} composant{filteredComponents.length > 1 ? 's' : ''} à acheter
           {totalCost > 0 && (
             <span className="ml-4 text-3s-primary font-semibold">
-              Coût total: {totalCost.toFixed(2)} €
+              Coût total: {formatPrice(totalCost)}
             </span>
           )}
         </div>
@@ -465,7 +466,7 @@ const ComponentsToBuy: React.FC = () => {
                     {/* Prix unitaire */}
                     <div className="col-span-1">
                       <span className="text-gray-700 font-inter">
-                        {Number(componentToBuy.unitPrice || 0).toFixed(2)} €
+                        {formatPrice(componentToBuy.unitPrice)}
                       </span>
                     </div>
 
@@ -534,7 +535,7 @@ const ComponentsToBuy: React.FC = () => {
               <div className="flex justify-end items-center gap-4">
                 <span className="text-sm text-gray-600 font-inter">Coût total estimé:</span>
                 <span className="text-lg font-bold text-3s-primary font-inter">
-                  {totalCost.toFixed(2)} €
+                  {formatPrice(totalCost)}
                 </span>
               </div>
             </div>
