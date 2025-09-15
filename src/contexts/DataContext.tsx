@@ -438,14 +438,16 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           .map(comp => {
             const currentComponent = components.find(c => c.id === comp.componentId);
             if (currentComponent) {
-              const newAvailableQuantity = currentComponent.quantity;
-              const newQuantityToBuy = Math.max(0, comp.requiredQuantity - newAvailableQuantity);
-              const newTotalCost = newQuantityToBuy * Number(comp.unitPrice || 0);
+              const newAvailableQuantity = Number(currentComponent.quantity || 0);
+              const unitPrice = Number(currentComponent.unitPrice || 0);
+              const newQuantityToBuy = Math.max(0, Number(comp.requiredQuantity || 0) - newAvailableQuantity);
+              const newTotalCost = newQuantityToBuy * unitPrice;
               
               return {
                 ...comp,
                 availableQuantity: newAvailableQuantity,
                 quantityToBuy: newQuantityToBuy,
+                unitPrice,
                 totalCost: newTotalCost
               };
             }
@@ -481,7 +483,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         
         return {
           componentId: component.id,
-          componentName: component.name,
+          // Unifier l'affichage: utiliser la désignation comme nom visible
+          componentName: component.designation,
           componentDesignation: component.designation,
           requiredQuantity,
           availableQuantity,

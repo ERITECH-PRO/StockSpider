@@ -8,7 +8,7 @@ const ProductsInAssembly: React.FC = () => {
   const [productsInAssembly, setProductsInAssembly] = useState<ProductInAssembly[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fonction pour synchroniser le stock des composants
+  // Fonction pour synchroniser le stock et libellés des composants
   const syncComponentStock = (products: ProductInAssembly[]): ProductInAssembly[] => {
     return products.map(product => ({
       ...product,
@@ -17,6 +17,9 @@ const ProductsInAssembly: React.FC = () => {
         if (currentComponent) {
           return {
             ...comp,
+            // Unifier les noms affichés sur la désignation
+            componentName: currentComponent.designation,
+            componentDesignation: currentComponent.designation,
             availableQuantity: currentComponent.quantity,
             isAvailable: currentComponent.quantity >= comp.requiredQuantity
           };

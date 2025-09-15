@@ -77,33 +77,37 @@ const ComponentsToBuy: React.FC = () => {
     return Array.from(grouped.values());
   };
 
-  // Charger les composants à acheter depuis localStorage
+  // Charger les composants à acheter depuis localStorage + réagir aux changements de stock
   useEffect(() => {
     try {
       const saved = localStorage.getItem('componentsToBuy');
-      if (saved) {
-        const rawComponents = JSON.parse(saved);
-        
-        // Corriger les calculs des quantités à acheter
-        const correctedComponents = fixQuantityCalculations(rawComponents);
-        
-        // Regrouper les composants identiques
-        const groupedComponents = groupComponentsById(correctedComponents);
-        
-        setComponentsToBuy(groupedComponents);
-        
-        // Sauvegarder la version corrigée et regroupée si elle a changé
-        if (rawComponents.length !== groupedComponents.length || 
-            JSON.stringify(rawComponents) !== JSON.stringify(correctedComponents)) {
-          localStorage.setItem('componentsToBuy', JSON.stringify(groupedComponents));
-        }
+      const rawComponents = saved ? JSON.parse(saved) : [];
+
+      // Corriger puis regrouper
+      const correctedComponents = fixQuantityCalculations(
+        rawComponents.map((item: ComponentToBuy) => {
+          const current = components.find(c => c.id === item.componentId);
+          const availableQuantity = current ? Number(current.quantity || 0) : Number(item.availableQuantity || 0);
+          const unitPrice = current ? Number(current.unitPrice || 0) : Number(item.unitPrice || 0);
+          return { ...item, availableQuantity, unitPrice };
+        })
+      );
+      const groupedComponents = groupComponentsById(correctedComponents);
+
+      setComponentsToBuy(groupedComponents);
+
+      // Sauvegarder si changé
+      if (
+        JSON.stringify(rawComponents) !== JSON.stringify(groupedComponents)
+      ) {
+        localStorage.setItem('componentsToBuy', JSON.stringify(groupedComponents));
       }
     } catch (error) {
       console.error('Erreur chargement composants à acheter:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [components]);
 
   // Composants filtrés et regroupés
   const filteredComponents = useMemo(() => {
