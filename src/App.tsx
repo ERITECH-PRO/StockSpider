@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Package, Loader2, Box, Calendar, User } from 'lucide-react';
+import { Package, Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './hooks/useAuth.tsx';
 import { ToastProvider } from './hooks/useToast';
 import { DataProvider, useDataContext } from './contexts/DataContext';
-import { AssembledProduct } from './types';
 import SyncNotification from './components/UI/SyncNotification';
 import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
+import NotificationPanel from './components/UI/NotificationPanel';
 import Dashboard from './components/Dashboard/Dashboard';
 import ComponentList from './components/Components/ComponentList';
 import ComponentModal from './components/Components/ComponentModal';
@@ -25,13 +25,26 @@ import SettingsPanel from './components/Settings/SettingsPanel';
 const AppContent = () => {
   const { isAuthenticated, login, loading: authLoading } = useAuth();
   const { getLowStockComponents, syncNotification, hideSyncNotification } = useDataContext();
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState(() => {
+    try {
+      return localStorage.getItem('currentPage') || 'dashboard';
+    } catch {
+      return 'dashboard';
+    }
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [showComponentModal, setShowComponentModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('sidebarCollapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [loginForm, setLoginForm] = useState({ email: 'admin@stockspider.com', password: 'admin123' });
   const [loginLoading, setLoginLoading] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const lowStockCount = getLowStockComponents().length;
 
@@ -74,6 +87,20 @@ const AppContent = () => {
       setShowProductModal(true);
     }
   };
+
+  // Persister la page courante
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('currentPage', currentPage);
+    } catch {}
+  }, [currentPage]);
+
+  // Persister l'état du sidebar
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('sidebarCollapsed', sidebarCollapsed ? 'true' : 'false');
+    } catch {}
+  }, [sidebarCollapsed]);
 
   const renderPageContent = () => {
     switch (currentPage) {
@@ -206,6 +233,7 @@ const AppContent = () => {
           searchPlaceholder={getSearchPlaceholder()}
           onSearchChange={showSearch ? setSearchQuery : undefined}
           notificationCount={lowStockCount}
+          onBellClick={() => setNotificationsOpen(true)}
         />
         
         <main className="flex-1 overflow-y-auto bg-3s-gray-light">
@@ -231,6 +259,9 @@ const AppContent = () => {
         message={syncNotification.message}
         onClose={hideSyncNotification}
       />
+
+      {/* Panneau notifications */}
+      <NotificationPanel isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
     </div>
   );
 };

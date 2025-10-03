@@ -4,7 +4,7 @@ import { useDataContext } from '../../contexts/DataContext';
 import { ProductInAssembly } from '../../types';
 
 const ProductsInAssembly: React.FC = () => {
-  const { components } = useDataContext();
+  const { components, assembleProduct } = useDataContext();
   const [productsInAssembly, setProductsInAssembly] = useState<ProductInAssembly[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -156,14 +156,18 @@ const ProductsInAssembly: React.FC = () => {
     saveProductsInAssembly(updated);
   };
 
-  // Marquer un produit comme terminé
-  const completeAssembly = (productInAssembly: ProductInAssembly) => {
-    const updated = productsInAssembly.map(p => 
-      p.id === productInAssembly.id 
-        ? { ...p, status: 'completed' as const }
-        : p
-    );
-    saveProductsInAssembly(updated);
+  // Marquer un produit comme terminé: assembler, créer l'entrée “produit assemblé” et retirer de la liste
+  const completeAssembly = async (productInAssembly: ProductInAssembly) => {
+    try {
+      const success = await assembleProduct(productInAssembly.productId, productInAssembly.quantityToAssemble);
+      if (success) {
+        // Retirer de la liste locale une fois assemblé
+        const updated = productsInAssembly.filter(p => p.id !== productInAssembly.id);
+        saveProductsInAssembly(updated);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la finalisation de l\'assemblage:', error);
+    }
   };
 
   // Annuler un produit en cours

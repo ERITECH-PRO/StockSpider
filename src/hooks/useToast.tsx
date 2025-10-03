@@ -7,6 +7,8 @@ interface ToastContextType {
   showError: (title: string, message?: string) => void;
   showWarning: (title: string, message?: string) => void;
   showInfo: (title: string, message?: string) => void;
+  toasts: (ToastProps & { id: string })[];
+  removeToast: (id: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -48,7 +50,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     showToast({ type: 'info', title, message });
   }, [showToast]);
 
-  const value = useMemo(() => ({ showToast, showSuccess, showError, showWarning, showInfo }), [showToast, showSuccess, showError, showWarning, showInfo]);
+  const value = useMemo(() => ({ showToast, showSuccess, showError, showWarning, showInfo, toasts, removeToast }), [showToast, showSuccess, showError, showWarning, showInfo, toasts, removeToast]);
 
   return (
     <ToastContext.Provider value={value}>

@@ -264,7 +264,6 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
     setUpdatingStocks(prev => new Set(prev).add(componentId));
     
     try {
-      const newQuantity = Math.max(0, component.quantity + adjustment);
       const reason = adjustment > 0 ? `Ajout manuel (+${adjustment})` : `Retrait manuel (${adjustment})`;
       
       await updateStock(componentId, Math.abs(adjustment), adjustment > 0 ? 'in' : 'out', reason);
@@ -396,8 +395,26 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
             <div key={component.id} className="card-3s p-6 animate-fade-in hover:shadow-card-hover transition-all duration-200">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-3s-blue/10 rounded-lg">
-                    <Package className="w-5 h-5 text-3s-blue" />
+                  <div className="p-2 bg-3s-blue/10 rounded-lg relative w-12 h-12 flex items-center justify-center">
+                    {component.imageUrl ? (
+                      <img
+                        src={component.imageUrl}
+                        alt={component.designation}
+                        className="w-8 h-8 object-cover rounded border border-gray-200"
+                        onError={(e) => {
+                          // Fallback vers l'icône si l'image ne charge pas
+                          e.currentTarget.style.display = 'none';
+                          const fallbackIcon = e.currentTarget.nextElementSibling as HTMLElement;
+                          if (fallbackIcon) {
+                            fallbackIcon.style.display = 'block';
+                          }
+                        }}
+                      />
+                    ) : null}
+                    <Package 
+                      className={`w-5 h-5 text-3s-blue ${component.imageUrl ? 'hidden' : 'block'}`} 
+                      style={{ display: component.imageUrl ? 'none' : 'block' }}
+                    />
                   </div>
                   <div>
                     <h3 className="font-semibold text-3s-black font-inter">{component.name}</h3>

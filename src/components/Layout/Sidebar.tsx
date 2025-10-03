@@ -1,9 +1,7 @@
-import React from 'react';
 import { 
   LayoutDashboard, 
   Package, 
   Box, 
-  Wrench, 
   TrendingUp, 
   DollarSign, 
   Truck, 
@@ -45,7 +43,7 @@ const Sidebar = ({ currentPage, onPageChange, lowStockCount, isCollapsed, onTogg
   ];
 
   return (
-    <div className={`bg-3s-black text-white min-h-screen flex flex-col transition-all duration-300 animate-slide-in ${
+    <div className={`bg-3s-black text-white h-screen sticky top-0 flex flex-col transition-all duration-300 animate-slide-in shrink-0 ${
       isCollapsed ? 'w-16' : 'w-64'
     }`}>
       <div className="p-4 border-b border-gray-700">
@@ -83,7 +81,7 @@ const Sidebar = ({ currentPage, onPageChange, lowStockCount, isCollapsed, onTogg
         </div>
       )}
 
-      <nav className="flex-1 p-4">
+      <nav className="flex-1 p-4 overflow-y-auto no-scrollbar">
         <ul className="space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon;

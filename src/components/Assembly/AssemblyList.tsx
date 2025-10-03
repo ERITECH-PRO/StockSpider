@@ -14,26 +14,32 @@ interface AssemblyMovement {
 }
 
 const AssemblyList = () => {
-  const { products, assembleProduct } = useData();
+  const { products, assembleProduct, assembledProducts } = useData();
   const { showSuccess, showError } = useToast();
   const [assemblies, setAssemblies] = useState<AssemblyMovement[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<string>('');
   const [assemblyQuantity, setAssemblyQuantity] = useState<number>(1);
 
-  // Charger les assemblages depuis localStorage (simulation)
+  // Synchroniser à partir du contexte: afficher les produits assemblés réels
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('assemblyMovements');
-      if (saved) {
-        setAssemblies(JSON.parse(saved));
-      }
+      const mapped = (assembledProducts || []).map(ap => ({
+        id: ap.id,
+        productId: ap.productId,
+        productName: ap.productName,
+        quantity: ap.assembledQuantity,
+        assembledAt: ap.assembledAt,
+        assembledBy: ap.assembledBy,
+        totalCost: ap.totalCost,
+      }));
+      setAssemblies(mapped);
     } catch (error) {
-      console.error('Erreur chargement assemblages:', error);
+      console.error('Erreur mapping produits assemblés:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [assembledProducts]);
 
   const handleAssemble = async () => {
     if (!selectedProduct) {
@@ -50,31 +56,14 @@ const AssemblyList = () => {
       const success = await assembleProduct(selectedProduct, assemblyQuantity);
       
       if (success) {
-        // Ajouter l'assemblage à la liste
+        // La liste s'actualise via le contexte (assembledProducts)
         const product = products.find(p => p.id === selectedProduct);
         if (product) {
-          const newAssembly: AssemblyMovement = {
-            id: `assembly_${Date.now()}`,
-            productId: selectedProduct,
-            productName: product.name,
-            quantity: assemblyQuantity,
-            assembledAt: new Date().toISOString(),
-            assembledBy: 'Utilisateur actuel', // TODO: Récupérer l'utilisateur connecté
-            totalCost: (Number(product.productionCost) || 0) * assemblyQuantity
-          };
-
-          const updatedAssemblies = [newAssembly, ...assemblies];
-          setAssemblies(updatedAssemblies);
-          
-          // Sauvegarder dans localStorage
-          localStorage.setItem('assemblyMovements', JSON.stringify(updatedAssemblies));
-          
           showSuccess('Assemblage réussi', `${assemblyQuantity} unité${assemblyQuantity > 1 ? 's' : ''} de ${product.name} assemblée${assemblyQuantity > 1 ? 's' : ''}`);
-          
-          // Réinitialiser le formulaire
-          setSelectedProduct('');
-          setAssemblyQuantity(1);
         }
+        // Réinitialiser le formulaire
+        setSelectedProduct('');
+        setAssemblyQuantity(1);
       }
     } catch (error) {
       console.error('Erreur assemblage:', error);

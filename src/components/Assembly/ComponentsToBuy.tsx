@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ShoppingCart, CheckCircle, X, Search, Filter, Download, ExternalLink } from 'lucide-react';
+import { ShoppingCart, CheckCircle, X, Search, Filter, Download, Package } from 'lucide-react';
 import { useDataContext } from '../../contexts/DataContext';
 import { ComponentToBuy } from '../../types';
 import * as XLSX from 'xlsx';
 import { formatPrice } from '../../utils/priceFormatter';
 
 const ComponentsToBuy: React.FC = () => {
-  const { components } = useDataContext();
+  const { components, updateStock, reloadComponents } = useDataContext();
   const [componentsToBuy, setComponentsToBuy] = useState<ComponentToBuy[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,25 +83,8 @@ const ComponentsToBuy: React.FC = () => {
       const saved = localStorage.getItem('componentsToBuy');
       const rawComponents = saved ? JSON.parse(saved) : [];
 
-      // Corriger puis regrouper
-      const correctedComponents = fixQuantityCalculations(
-        rawComponents.map((item: ComponentToBuy) => {
-          const current = components.find(c => c.id === item.componentId);
-          const availableQuantity = current ? Number(current.quantity || 0) : Number(item.availableQuantity || 0);
-          const unitPrice = current ? Number(current.unitPrice || 0) : Number(item.unitPrice || 0);
-          return { ...item, availableQuantity, unitPrice };
-        })
-      );
-      const groupedComponents = groupComponentsById(correctedComponents);
-
-      setComponentsToBuy(groupedComponents);
-
-      // Sauvegarder si changé
-      if (
-        JSON.stringify(rawComponents) !== JSON.stringify(groupedComponents)
-      ) {
-        localStorage.setItem('componentsToBuy', JSON.stringify(groupedComponents));
-      }
+      // Les composants sont maintenant pré-agrégés dans DataContext, on les affiche directement
+      setComponentsToBuy(rawComponents);
     } catch (error) {
       console.error('Erreur chargement composants à acheter:', error);
     } finally {
@@ -193,17 +176,15 @@ const ComponentsToBuy: React.FC = () => {
       const component = components.find(c => c.id === comp.componentId);
       return {
         'Nom du composant': comp.componentName,
-        'Désignation': comp.componentDesignation,
-        'Référence produit': comp.componentId,
+        'N° produit': component?.productNumber || '',
         'Footprint': component?.footprint || '',
-        'Catégorie': component?.category || '',
+        'Réf. produit': comp.componentId,
         'Quantité requise': comp.requiredQuantity,
         'Stock disponible': comp.availableQuantity,
         'Quantité à acheter': comp.quantityToBuy,
         'Fournisseur': component?.supplier || '',
         'Prix unitaire (€)': Number(comp.unitPrice || 0),
-        'Coût total (€)': Number(comp.totalCost || 0),
-        'Lien d\'achat': (component as any)?.purchaseLink || '',
+        'Image URL': component?.imageUrl || '',
         'Statut': comp.status === 'pending' ? 'En attente' : 
                  comp.status === 'ordered' ? 'Commandé' : 
                  comp.status === 'received' ? 'Reçu' : 'Annulé'
@@ -217,17 +198,15 @@ const ComponentsToBuy: React.FC = () => {
     // Ajuster la largeur des colonnes
     const colWidths = [
       { wch: 20 }, // Nom du composant
-      { wch: 15 }, // Désignation
-      { wch: 15 }, // Référence produit
+      { wch: 15 }, // N° produit
       { wch: 10 }, // Footprint
-      { wch: 12 }, // Catégorie
+      { wch: 12 }, // Réf. produit
       { wch: 12 }, // Quantité requise
       { wch: 12 }, // Stock disponible
       { wch: 12 }, // Quantité à acheter
       { wch: 15 }, // Fournisseur
       { wch: 12 }, // Prix unitaire
-      { wch: 12 }, // Coût total
-      { wch: 20 }, // Lien d'achat
+      { wch: 10 }, // Image (URL)
       { wch: 10 }  // Statut
     ];
     ws['!cols'] = colWidths;
@@ -235,14 +214,42 @@ const ComponentsToBuy: React.FC = () => {
     XLSX.writeFile(wb, `composants-a-acheter-${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  // Marquer un composant comme commandé
-  const markAsOrdered = (componentToBuy: ComponentToBuy) => {
-    const updated = componentsToBuy.map(c => 
-      c.id === componentToBuy.id 
-        ? { ...c, status: 'ordered' as const }
-        : c
-    );
-    saveComponentsToBuy(updated);
+  // Approuver un achat: ajouter au stock et retirer de la liste
+  const approveAndAddStock = async (componentToBuy: ComponentToBuy) => {
+    try {
+      const quantityToAdd = Number(componentToBuy.quantityToBuy || 0);
+      if (quantityToAdd <= 0) {
+        // Rien à ajouter
+        removeFromBuyList(componentToBuy);
+        return;
+      }
+
+      await updateStock(
+        componentToBuy.componentId,
+        quantityToAdd,
+        'in',
+        `Approvisionnement validé: ${componentToBuy.componentName}`
+      );
+
+      // Recharger les composants pour refléter le nouveau stock
+      await reloadComponents();
+
+      // Mettre à jour la liste locale: marquer reçu et recalculer (disparaîtra si quantité à acheter = 0)
+      const updated = componentsToBuy.map(c => 
+        c.id === componentToBuy.id 
+          ? { 
+              ...c, 
+              status: 'received' as const,
+              availableQuantity: Number(c.availableQuantity || 0) + quantityToAdd,
+              quantityToBuy: 0,
+              totalCost: 0
+            }
+          : c
+      );
+      saveComponentsToBuy(updated);
+    } catch (error) {
+      console.error('Erreur approvisionnement et ajout stock:', error);
+    }
   };
 
   // Marquer un composant comme reçu
@@ -391,7 +398,8 @@ const ComponentsToBuy: React.FC = () => {
           {/* En-tête du tableau */}
           <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
             <div className="grid grid-cols-12 gap-4 text-sm font-semibold text-gray-700 font-inter">
-              <div className="col-span-3">Composant</div>
+              <div className="col-span-2">Composant</div>
+              <div className="col-span-1">N° produit</div>
               <div className="col-span-1">Footprint</div>
               <div className="col-span-1">Réf. produit</div>
               <div className="col-span-1">Requis</div>
@@ -399,7 +407,7 @@ const ComponentsToBuy: React.FC = () => {
               <div className="col-span-1">À acheter</div>
               <div className="col-span-1">Fournisseur</div>
               <div className="col-span-1">Prix (€)</div>
-              <div className="col-span-1">Lien</div>
+              <div className="col-span-1">Image</div>
               <div className="col-span-1">Actions</div>
             </div>
           </div>
@@ -413,16 +421,20 @@ const ComponentsToBuy: React.FC = () => {
                 <div key={componentToBuy.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
                   <div className="grid grid-cols-12 gap-4 items-center text-sm">
                     {/* Nom du composant */}
-                    <div className="col-span-3">
+                    <div className="col-span-2">
                       <div className="font-medium text-3s-black font-inter">
                         {componentToBuy.componentName}
                       </div>
                       <div className="text-xs text-gray-500 font-inter">
                         {componentToBuy.componentDesignation}
                       </div>
-                      <div className="text-xs text-gray-400 font-inter">
-                        {componentToBuy.productName}
-                      </div>
+                    </div>
+
+                    {/* N° produit */}
+                    <div className="col-span-1">
+                      <span className="text-gray-700 font-inter font-mono text-xs">
+                        {component?.productNumber || 'N/A'}
+                      </span>
                     </div>
 
                     {/* Footprint */}
@@ -455,7 +467,7 @@ const ComponentsToBuy: React.FC = () => {
 
                     {/* Quantité à acheter */}
                     <div className="col-span-1">
-                      <span className="text-red-600 font-inter font-semibold">
+                      <span className={`font-inter font-semibold ${componentToBuy.quantityToBuy > 0 ? 'text-red-600' : 'text-gray-500'}`}>
                         {componentToBuy.quantityToBuy}
                       </span>
                     </div>
@@ -474,20 +486,29 @@ const ComponentsToBuy: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* Lien d'achat */}
+                    {/* Image du composant */}
                     <div className="col-span-1">
-                      {(component as any)?.purchaseLink ? (
-                        <a
-                          href={(component as any).purchaseLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-3s-primary hover:text-3s-primary-dark transition-colors"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
+                      <div className="flex items-center justify-center">
+                        {component?.imageUrl ? (
+                          <img
+                            src={component.imageUrl}
+                            alt={componentToBuy.componentName}
+                            className="w-8 h-8 object-cover rounded border border-gray-200"
+                            onError={(e) => {
+                              // Fallback vers l'icône si l'image ne charge pas
+                              e.currentTarget.style.display = 'none';
+                              const fallbackIcon = e.currentTarget.nextElementSibling as HTMLElement;
+                              if (fallbackIcon) {
+                                fallbackIcon.style.display = 'block';
+                              }
+                            }}
+                          />
+                        ) : null}
+                        <Package 
+                          className={`w-5 h-5 text-3s-blue ${component?.imageUrl ? 'hidden' : 'block'}`} 
+                          style={{ display: component?.imageUrl ? 'none' : 'block' }}
+                        />
+                      </div>
                     </div>
 
                     {/* Actions */}
@@ -496,9 +517,9 @@ const ComponentsToBuy: React.FC = () => {
                         {componentToBuy.status === 'pending' && (
                           <>
                             <button
-                              onClick={() => markAsOrdered(componentToBuy)}
+                              onClick={() => approveAndAddStock(componentToBuy)}
                               className="p-1 text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                              title="Marquer comme commandé"
+                              title="Approuver et ajouter au stock"
                             >
                               <CheckCircle className="w-4 h-4" />
                             </button>

@@ -17,6 +17,7 @@ export interface Component {
   supplier: string;
   category: ComponentCategory;
   minStock: number;
+  imageUrl?: string;
   createdAt: string;
   updatedAt: string;
 }

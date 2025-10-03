@@ -10,6 +10,7 @@ interface HeaderProps {
   searchPlaceholder?: string;
   onSearchChange?: (value: string) => void;
   notificationCount?: number;
+  onBellClick?: () => void;
 }
 
 const Header = ({ 
@@ -18,7 +19,8 @@ const Header = ({
   showAddButton = false, 
   searchPlaceholder = "Rechercher...",
   onSearchChange,
-  notificationCount = 0
+  notificationCount = 0,
+  onBellClick
 }: HeaderProps) => {
   const { isSyncing, lastSyncTime } = useDataContext();
 
@@ -52,7 +54,7 @@ const Header = ({
             </div>
           )}
 
-          <button className="relative p-2 text-3s-gray-medium hover:text-3s-blue hover:bg-3s-gray-light rounded-lg transition-all duration-200">
+          <button onClick={onBellClick} className="relative p-2 text-3s-gray-medium hover:text-3s-blue hover:bg-3s-gray-light rounded-lg transition-all duration-200">
             <Bell className="w-5 h-5" />
             {notificationCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-3s-red text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-bounce-subtle font-inter">

@@ -12,6 +12,15 @@ body {
 }
 
 @layer components {
+  /* Masquer les barres de défilement (web, firefox, edge) */
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+
   .btn-3s-primary {
     @apply bg-3s-blue hover:bg-3s-blue-dark text-white font-medium px-4 py-2 rounded-lg shadow-3s transition-all duration-200 hover:shadow-3s-lg hover:scale-105;
   }

@@ -1,0 +1,38 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: stockspider-api
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - DB_HOST=185.183.35.80
+      - DB_USER=root
+      - DB_PASSWORD=StrongPassword123
+      - DB_NAME=spider_stock
+    volumes:
+      - ./server/uploads:/app/server/uploads
+      - ./server/config-local.cjs:/app/server/config-local.cjs:ro
+    ports:
+      - "3002:3002"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: stockspider-web
+    depends_on:
+      - api
+    ports:
+      - "5174:80"
+    restart: unless-stopped
+
+networks:
+  default:
+    name: stockspider-net
+
+

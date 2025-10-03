@@ -1,9 +1,41 @@
 const express = require('express');
 const { randomUUID } = require('crypto');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const db = require('../database.cjs');
 const auth = require('../middleware/auth.cjs');
 
 const router = express.Router();
+
+// Configuration multer pour l'upload d'images
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../uploads/components');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'component-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB max
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Seules les images sont autorisées'), false);
+    }
+  }
+});
 
 // GET /api/components - Récupérer tous les composants
 router.get('/', auth, async (req, res) => {
@@ -20,6 +52,7 @@ router.get('/', auth, async (req, res) => {
         supplier,
         category,
         min_stock as minStock,
+        image_url as imageUrl,
         created_at as createdAt,
         updated_at as updatedAt
       FROM components 
@@ -210,22 +243,26 @@ router.post('/:id/stock', auth, async (req, res) => {
     }
 
     await db.transaction(async (connection) => {
-      // Récupérer le composant actuel
-      const [component] = await connection.execute('SELECT quantity FROM components WHERE id = ?', [id]);
+      // Récupérer le composant actuel (corriger la lecture des résultats SQL)
+      const [rows] = await connection.execute('SELECT quantity FROM components WHERE id = ?', [id]);
+      const componentRow = Array.isArray(rows) ? rows[0] : rows;
       
-      console.log('📦 Composant trouvé:', component);
+      console.log('📦 Composant trouvé:', componentRow);
       
-      if (!component) {
+      if (!componentRow) {
         throw new Error('Composant non trouvé');
       }
 
-      let newQuantity = component.quantity;
-      let movementQuantity = quantity;
+      const currentQuantity = Number(componentRow.quantity) || 0;
+      const qty = Number(quantity) || 0;
+
+      let newQuantity = currentQuantity;
+      let movementQuantity = qty;
       let movementType = type;
       
       console.log('📦 Calcul initial:', {
-        currentQuantity: component.quantity,
-        quantity,
+        currentQuantity,
+        quantity: qty,
         type,
         newQuantity,
         movementQuantity,
@@ -233,13 +270,13 @@ router.post('/:id/stock', auth, async (req, res) => {
       });
       
       if (type === 'in') {
-        newQuantity += quantity;
+        newQuantity += qty;
       } else if (type === 'out') {
-        newQuantity -= quantity;
+        newQuantity -= qty;
       } else if (type === 'adjustment') {
         // Pour les ajustements, on calcule la différence
-        const difference = quantity - component.quantity;
-        newQuantity = quantity;
+        const difference = qty - currentQuantity;
+        newQuantity = qty;
         movementQuantity = Math.abs(difference);
         // On détermine le type de mouvement selon si c'est un ajout ou un retrait
         movementType = difference >= 0 ? 'in' : 'out';
@@ -285,6 +322,61 @@ router.post('/:id/stock', auth, async (req, res) => {
   } catch (error) {
     console.error('Erreur mise à jour stock:', error);
     res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// POST /api/components/upload-image - Upload d'image pour un composant
+router.post('/upload-image', auth, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucune image fournie' });
+    }
+
+    const { componentId } = req.body;
+    
+    if (!componentId) {
+      // Supprimer le fichier uploadé si pas de componentId
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: 'ID du composant requis' });
+    }
+
+    // Vérifier que le composant existe
+    const [component] = await db.query('SELECT id FROM components WHERE id = ?', [componentId]);
+    if (!component) {
+      // Supprimer le fichier uploadé si le composant n'existe pas
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: 'Composant non trouvé' });
+    }
+
+    // Supprimer l'ancienne image si elle existe
+    const [existingComponent] = await db.query('SELECT image_url FROM components WHERE id = ?', [componentId]);
+    if (existingComponent && existingComponent.image_url) {
+      const oldImagePath = path.join(__dirname, '../uploads/components', path.basename(existingComponent.image_url));
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    // Construire l'URL de l'image
+    const imageUrl = `http://localhost:3001/uploads/components/${req.file.filename}`;
+
+    // Mettre à jour le composant avec la nouvelle image
+    await db.query('UPDATE components SET image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [imageUrl, componentId]);
+
+    res.json({ 
+      success: true, 
+      imageUrl: imageUrl,
+      message: 'Image uploadée avec succès' 
+    });
+  } catch (error) {
+    console.error('Erreur upload image:', error);
+    
+    // Supprimer le fichier en cas d'erreur
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    res.status(500).json({ error: 'Erreur lors de l\'upload de l\'image' });
   }
 });
 

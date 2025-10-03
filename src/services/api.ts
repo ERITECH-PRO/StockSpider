@@ -94,6 +94,32 @@ class ApiService {
     });
   }
 
+  async uploadComponentImage(componentId: string, imageFile: File): Promise<{ imageUrl: string }> {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+    formData.append('componentId', componentId);
+
+    const response = await fetch(`${API_BASE_URL}/components/upload-image`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+      },
+      body: formData,
+    });
+
+    if (response.status === 401) {
+      this.logout();
+      throw new Error('Non autorisé (401)');
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Erreur réseau' }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
+
   async deleteProduct(id: string): Promise<void> {
     await this.request(`/products/${id}`, {
       method: 'DELETE',

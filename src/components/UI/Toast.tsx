@@ -43,18 +43,18 @@ const Toast: React.FC<ToastProps> = ({ id, type, title, message, onClose }) => {
   }, [id, onClose]);
 
   return (
-    <div className={`max-w-sm w-full ${colors[type]} border rounded-lg shadow-lg p-4 animate-slide-in`}>
-      <div className="flex items-start">
+    <div className={`max-w-md ${colors[type]} border rounded-lg shadow-lg p-4 animate-slide-in pointer-events-auto`}>
+      <div className="flex items-start gap-3">
         <div className="flex-shrink-0">
           <Icon className={`w-5 h-5 ${iconColors[type]}`} />
         </div>
-        <div className="ml-3 w-0 flex-1">
-          <p className="text-sm font-medium font-inter">{title}</p>
+        <div className="flex-1 min-w-0 break-words whitespace-normal">
+          <p className="text-sm font-medium font-inter leading-snug">{title}</p>
           {message && (
-            <p className="mt-1 text-sm opacity-90 font-inter">{message}</p>
+            <p className="mt-1 text-sm opacity-90 font-inter leading-snug break-words whitespace-normal">{message}</p>
           )}
         </div>
-        <div className="ml-4 flex-shrink-0 flex">
+        <div className="flex-shrink-0 flex">
           <button
             onClick={() => onClose(id)}
             className="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none"

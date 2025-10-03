@@ -149,31 +149,53 @@ router.put('/:id', auth, async (req, res) => {
     
     const {
       name,
-      description = '',
-      productNumber = '',
-      components = [],
-      productionCost = 0,
-      sellingPrice = 0,
-      quantity = 0
+      description,
+      productNumber,
+      components,
+      productionCost,
+      sellingPrice,
+      quantity
     } = req.body;
 
-    if (!name || sellingPrice === undefined || sellingPrice === null) {
+    // Charger l'état actuel du produit pour supporter les mises à jour partielles
+    const existingRows = await db.query(
+      'SELECT name, description, product_number, production_cost, selling_price, quantity FROM products WHERE id = ?',
+      [id]
+    );
+    if (!existingRows || existingRows.length === 0) {
+      return res.status(404).json({ error: 'Produit non trouvé' });
+    }
+    const existing = existingRows[0];
+
+    // Fusionner les valeurs fournies avec les valeurs existantes
+    const merged = {
+      name: name ?? existing.name,
+      description: description ?? existing.description ?? '',
+      productNumber: productNumber ?? existing.product_number ?? '',
+      productionCost: productionCost ?? existing.production_cost ?? 0,
+      sellingPrice: sellingPrice ?? existing.selling_price,
+      quantity: quantity ?? existing.quantity ?? 0,
+    };
+
+    if (!merged.name || merged.sellingPrice === undefined || merged.sellingPrice === null) {
       return res.status(400).json({ error: 'Nom et prix de vente requis' });
     }
 
     await db.transaction(async (connection) => {
-      // Mettre à jour le produit
+      // Mettre à jour le produit (avec valeurs fusionnées)
       await connection.execute(`
         UPDATE products 
         SET name = ?, description = ?, product_number = ?, production_cost = ?, selling_price = ?, quantity = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [name, description, productNumber, productionCost, sellingPrice, quantity, id]);
+      `, [merged.name, merged.description, merged.productNumber, merged.productionCost, merged.sellingPrice, merged.quantity, id]);
 
-      // Supprimer les anciens composants
-      await connection.execute('DELETE FROM product_components WHERE product_id = ?', [id]);
+      // Si une liste de composants est fournie, alors remplacer; sinon ne pas toucher
+      if (Array.isArray(components)) {
+        // Supprimer les anciens composants
+        await connection.execute('DELETE FROM product_components WHERE product_id = ?', [id]);
 
-      // Ajouter les nouveaux composants
-      if (components.length > 0) {
+        // Ajouter les nouveaux composants
+        if (components.length > 0) {
         // Grouper les composants par component_id et additionner les quantités
         const componentMap = new Map();
         for (const component of components) {
@@ -199,6 +221,7 @@ router.put('/:id', auth, async (req, res) => {
             INSERT INTO product_components (id, product_id, component_id, quantity)
             VALUES (?, ?, ?, ?)
           `, [pcId, id, componentId, data.quantity]);
+        }
         }
       }
     });
