@@ -19,10 +19,27 @@ const settingsRoutes = require('./routes/settings.cjs');
 const app = express();
 
 // Middleware
+const allowedOrigins = new Set([
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'http://185.183.35.80:5174',
+  process.env.FRONTEND_ORIGIN || ''
+].filter(Boolean));
+
 app.use(cors({
-  origin: ['http://localhost:5174', 'http://localhost:3000', 'http://localhost:5173'],
-  credentials: true
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // allow non-browser clients
+    if (allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error('CORS not allowed for origin: ' + origin), false);
+  },
+  credentials: true,
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Gérer explicitement les pré-requêtes CORS
+app.options('*', cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
