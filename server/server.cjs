@@ -38,8 +38,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Gérer explicitement les pré-requêtes CORS
-app.options('*', cors());
+// Gérer explicitement les pré-requêtes CORS (Express 5: éviter '*')
+app.options(/^.*$/, cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
