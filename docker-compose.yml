@@ -1,39 +1,34 @@
-version: '3.9'
+version: "3.9"
 
 services:
-  api:
+  backend:
     build:
       context: .
-      dockerfile: Dockerfile.api
-    container_name: stockspider-api
+      dockerfile: Dockerfile.backend
+    container_name: stockspider-backend
     environment:
-      - NODE_ENV=production
       - PORT=3002
       - DB_HOST=185.183.35.80
-      - DB_USER=root
-      - DB_PASSWORD=StrongPassword123
-      - DB_NAME=spider_stock
       - DB_PORT=3307
-    volumes:
-      - ./server/uploads:/app/server/uploads
-      - ./server/config-local.cjs:/app/server/config-local.cjs:ro
+      - DB_USER=root
+      - DB_PASSWORD=StrongPass123
+      - DB_NAME=spider_stock
+      - JWT_SECRET=spt@k_secret_key
     ports:
       - "3002:3002"
     restart: unless-stopped
 
-  web:
+  frontend:
     build:
       context: .
-      dockerfile: Dockerfile.web
-    container_name: stockspider-web
-    depends_on:
-      - api
+      dockerfile: Dockerfile.frontend
+      args:
+        - VITE_API_URL=http://185.183.35.80:3002
+    container_name: stockspider-frontend
     ports:
       - "5174:80"
+    depends_on:
+      - backend
     restart: unless-stopped
-
-networks:
-  default:
-    name: stockspider-net
 
 

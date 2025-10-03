@@ -20,17 +20,7 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: (origin, callback) => {
-    const allowed = [
-      'http://localhost:5174',
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://185.183.35.80:5174'
-    ];
-    if (!origin) return callback(null, true);
-    if (allowed.includes(origin)) return callback(null, true);
-    return callback(new Error('Bloqué par CORS')); 
-  },
+  origin: ['http://localhost:5174', 'http://localhost:3000', 'http://localhost:5173'],
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
