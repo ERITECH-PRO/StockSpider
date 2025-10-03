@@ -1,6 +1,7 @@
 import { Component, Product, User, DashboardStats } from '../types';
+import { CLIENT_CONFIG } from '../config';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = CLIENT_CONFIG.apiBaseUrl;
 
 class ApiService {
   private token: string | null = null;
