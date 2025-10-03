@@ -9,5 +9,5 @@ module.exports = {
     database: process.env.DB_NAME || 'spider_stock' 
   },
   jwtSecret: process.env.JWT_SECRET || 'spt@k_secret_key',
-  port: process.env.PORT || 3001
+  port: process.env.PORT || 3002
 };
