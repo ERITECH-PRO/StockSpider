@@ -8,6 +8,7 @@
     "dev:server": "node server/server.cjs",
     "dev:full": "concurrently \"npm run dev:server\" \"npm run dev\"",
     "start:server": "node server/server.cjs",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
