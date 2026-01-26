@@ -15,8 +15,14 @@ const resolvedApiBase = (() => {
   const envUrl = (import.meta as any)?.env?.VITE_API_URL as string | undefined;
   if (envUrl) return envUrl.replace(/\/$/, '');
   const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-  const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
-  return `${protocol}//${host}:3002`;
+
+  // En production (pas localhost), on utilise des chemins relatifs
+  // Cela permet de passer par le même port/protocole que le site
+  if (host !== 'localhost' && host !== '127.0.0.1') {
+    return '';
+  }
+
+  return `http://${host}:3002`;
 })();
 
 const API_BASE_URL = `${resolvedApiBase}/api`;
