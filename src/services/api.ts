@@ -15,7 +15,8 @@ const resolvedApiBase = (() => {
   const envUrl = (import.meta as any)?.env?.VITE_API_URL as string | undefined;
   if (envUrl) return envUrl.replace(/\/$/, '');
   const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-  return `http://${host}:3002`;
+  const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
+  return `${protocol}//${host}:3002`;
 })();
 
 const API_BASE_URL = `${resolvedApiBase}/api`;
