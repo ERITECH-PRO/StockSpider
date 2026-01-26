@@ -57,6 +57,13 @@ class Database {
       // Création des tables
       await this.createTables();
       console.log('✅ Tables créées avec succès !');
+
+      // Assurer une ligne unique de paramètres (id=1)
+      await this.query(`
+        INSERT INTO app_settings (id, company_name)
+        VALUES (1, '3S IT')
+        ON DUPLICATE KEY UPDATE company_name = company_name
+      `);
       
       // Migration des tables existantes
       await this.migrateTables();
@@ -191,6 +198,64 @@ class Database {
         status ENUM('pending', 'ordered', 'received', 'cancelled') DEFAULT 'pending',
         FOREIGN KEY (component_id) REFERENCES components(id) ON DELETE CASCADE,
         FOREIGN KEY (product_in_assembly_id) REFERENCES products_in_assembly(id) ON DELETE CASCADE
+      )`,
+
+      // Paramètres application (logo + infos société)
+      `CREATE TABLE IF NOT EXISTS app_settings (
+        id INT PRIMARY KEY,
+        company_name VARCHAR(255) NOT NULL DEFAULT '3S IT',
+        company_address TEXT,
+        company_phone VARCHAR(50),
+        company_email VARCHAR(255),
+        company_logo_url VARCHAR(500),
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`,
+
+      // Clients
+      `CREATE TABLE IF NOT EXISTS clients (
+        id VARCHAR(36) PRIMARY KEY,
+        company_name VARCHAR(255) NOT NULL,
+        address TEXT,
+        phone VARCHAR(50),
+        email VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`,
+
+      // Chantiers (liés à un client, optionnellement)
+      `CREATE TABLE IF NOT EXISTS chantiers (
+        id VARCHAR(36) PRIMARY KEY,
+        client_id VARCHAR(36),
+        name VARCHAR(255) NOT NULL,
+        address TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
+      )`,
+
+      // Bons de sortie + lignes
+      `CREATE TABLE IF NOT EXISTS bons_sortie (
+        id VARCHAR(36) PRIMARY KEY,
+        client_id VARCHAR(36) NOT NULL,
+        chantier_id VARCHAR(36) NOT NULL,
+        created_by VARCHAR(36) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
+        FOREIGN KEY (chantier_id) REFERENCES chantiers(id) ON DELETE RESTRICT,
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS bons_sortie_items (
+        id VARCHAR(36) PRIMARY KEY,
+        bon_sortie_id VARCHAR(36) NOT NULL,
+        product_id VARCHAR(36) NOT NULL,
+        product_code VARCHAR(255),
+        product_name VARCHAR(255) NOT NULL,
+        product_description TEXT,
+        quantity INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (bon_sortie_id) REFERENCES bons_sortie(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
       )`
     ];
 

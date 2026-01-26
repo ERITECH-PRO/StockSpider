@@ -20,6 +20,9 @@ import CostsAnalysis from './components/Costs/CostsAnalysis';
 import SuppliersList from './components/Suppliers/SuppliersList';
 import UsersList from './components/Users/UsersList';
 import SettingsPanel from './components/Settings/SettingsPanel';
+import ClientsList from './components/Clients/ClientsList';
+import ChantiersList from './components/Chantiers/ChantiersList';
+import BonSortiePage from './components/BonSortie/BonSortiePage';
 
 
 const AppContent = () => {
@@ -59,6 +62,9 @@ const AppContent = () => {
       movements: 'Stock & mouvements',
       costs: 'Coûts & marges',
       suppliers: 'Fournisseurs',
+      clients: 'Clients',
+      chantiers: 'Chantiers',
+      'bons-sortie': 'Bons de sortie',
       users: 'Utilisateurs',
       settings: 'Paramètres',
     };
@@ -122,6 +128,12 @@ const AppContent = () => {
         return <CostsAnalysis />;
       case 'suppliers':
         return <SuppliersList />;
+      case 'clients':
+        return <ClientsList />;
+      case 'chantiers':
+        return <ChantiersList />;
+      case 'bons-sortie':
+        return <BonSortiePage />;
       case 'users':
         return <UsersList />;
       case 'settings':

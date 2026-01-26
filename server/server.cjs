@@ -15,6 +15,9 @@ const costsRoutes = require('./routes/costs.cjs');
 const supplierRoutes = require('./routes/suppliers.cjs');
 const userRoutes = require('./routes/users.cjs');
 const settingsRoutes = require('./routes/settings.cjs');
+const clientsRoutes = require('./routes/clients.cjs');
+const chantiersRoutes = require('./routes/chantiers.cjs');
+const bonsSortieRoutes = require('./routes/bonsSortie.cjs');
 
 const app = express();
 
@@ -62,6 +65,9 @@ app.use('/api/costs', costsRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/clients', clientsRoutes);
+app.use('/api/chantiers', chantiersRoutes);
+app.use('/api/bons-sortie', bonsSortieRoutes);
 
 // Route de test
 app.get('/api/health', (req, res) => {

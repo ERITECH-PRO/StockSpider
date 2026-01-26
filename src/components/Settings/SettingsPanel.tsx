@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Settings, Save, Database, Bell, Globe, Shield } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Save, Database, Bell, Globe, Shield, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
+import { apiService } from '../../services/api';
 
 interface AppSettings {
   company: {
@@ -8,6 +9,8 @@ interface AppSettings {
     address: string;
     phone: string;
     email: string;
+    matriculeFiscal?: string;
+    logoUrl?: string;
   };
   inventory: {
     lowStockThreshold: number;
@@ -33,7 +36,9 @@ const SettingsPanel = () => {
       name: '3S IT',
       address: '',
       phone: '',
-      email: ''
+      email: '',
+      matriculeFiscal: '',
+      logoUrl: ''
     },
     inventory: {
       lowStockThreshold: 10,
@@ -53,17 +58,88 @@ const SettingsPanel = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [logoUploading, setLogoUploading] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const remote = await apiService.getSettings();
+        if (!isMounted) return;
+        setSettings((prev) => ({
+          ...prev,
+          ...remote,
+          company: {
+            ...prev.company,
+            ...(remote.company || {}),
+          },
+          inventory: {
+            ...prev.inventory,
+            ...(remote.inventory || {}),
+          },
+          notifications: {
+            ...prev.notifications,
+            ...(remote.notifications || {}),
+          },
+          system: {
+            ...prev.system,
+            ...(remote.system || {}),
+          }
+        }));
+      } catch (e) {
+        // garder defaults
+      } finally {
+        if (isMounted) setLoadingSettings(false);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSave = async () => {
     setLoading(true);
     try {
-      // TODO: Sauvegarder les paramètres via l'API
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulation
+      const result = await apiService.updateSettings({
+        company: settings.company,
+        inventory: settings.inventory,
+        notifications: settings.notifications,
+        system: settings.system,
+      });
+      setSettings((prev) => ({
+        ...prev,
+        ...result.settings,
+        company: { ...prev.company, ...(result.settings.company || {}) },
+        inventory: { ...prev.inventory, ...(result.settings.inventory || {}) },
+        notifications: { ...prev.notifications, ...(result.settings.notifications || {}) },
+        system: { ...prev.system, ...(result.settings.system || {}) },
+      }));
       showSuccess('Paramètres sauvegardés', 'Vos paramètres ont été mis à jour avec succès');
     } catch (error) {
       showError('Erreur', 'Impossible de sauvegarder les paramètres');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogoSelect = async (file: File | null) => {
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const res = await apiService.uploadCompanyLogo(file);
+      setSettings((prev) => ({
+        ...prev,
+        company: {
+          ...prev.company,
+          logoUrl: res.logoUrl,
+        },
+      }));
+      showSuccess('Logo mis à jour', 'Le logo a été uploadé avec succès');
+    } catch (e) {
+      showError('Erreur', 'Impossible d’uploader le logo');
+    } finally {
+      setLogoUploading(false);
     }
   };
 
@@ -111,12 +187,37 @@ const SettingsPanel = () => {
           <div className="p-6 space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
+                Logo (pour bon de sortie)
+              </label>
+              <div className="flex items-start gap-4">
+                <div className="w-24 h-24 border border-gray-200 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden">
+                  {settings.company.logoUrl ? (
+                    <img src={settings.company.logoUrl} alt="Logo société" className="max-w-full max-h-full object-contain" />
+                  ) : (
+                    <ImageIcon className="w-8 h-8 text-gray-400" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={logoUploading || loadingSettings}
+                    onChange={(e) => handleLogoSelect(e.target.files?.[0] || null)}
+                    className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 disabled:opacity-50"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">PNG/JPG - 5MB max.</p>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Nom de l'entreprise
               </label>
               <input
                 type="text"
                 value={settings.company.name}
                 onChange={(e) => handleChange('company', 'name', e.target.value)}
+                disabled={loadingSettings}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -128,6 +229,7 @@ const SettingsPanel = () => {
                 value={settings.company.address}
                 onChange={(e) => handleChange('company', 'address', e.target.value)}
                 rows={3}
+                disabled={loadingSettings}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -140,6 +242,7 @@ const SettingsPanel = () => {
                   type="tel"
                   value={settings.company.phone}
                   onChange={(e) => handleChange('company', 'phone', e.target.value)}
+                  disabled={loadingSettings}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -151,9 +254,23 @@ const SettingsPanel = () => {
                   type="email"
                   value={settings.company.email}
                   onChange={(e) => handleChange('company', 'email', e.target.value)}
+                  disabled={loadingSettings}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Matricule Fiscal (M.F)
+              </label>
+              <input
+                type="text"
+                value={settings.company.matriculeFiscal || ''}
+                onChange={(e) => handleChange('company', 'matriculeFiscal', e.target.value)}
+                disabled={loadingSettings}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Matricule fiscal de votre société"
+              />
             </div>
           </div>
         </div>

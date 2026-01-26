@@ -14,6 +14,9 @@ import {
   Clock,
   ShoppingCart,
   CheckCircle,
+  Building2,
+  MapPinned,
+  FileText,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -38,6 +41,10 @@ const Sidebar = ({ currentPage, onPageChange, lowStockCount, isCollapsed, onTogg
     { id: 'movements', label: 'Stock & mouvements', icon: TrendingUp },
     { id: 'costs', label: 'Coûts & marges', icon: DollarSign },
     { id: 'suppliers', label: 'Fournisseurs', icon: Truck },
+    // Admin: clients/chantiers/bons de sortie
+    { id: 'clients', label: 'Clients', icon: Building2 },
+    { id: 'chantiers', label: 'Chantiers', icon: MapPinned },
+    { id: 'bons-sortie', label: 'Bons de sortie', icon: FileText },
     { id: 'users', label: 'Utilisateurs', icon: Users },
     { id: 'settings', label: 'Paramètres', icon: Settings },
   ];

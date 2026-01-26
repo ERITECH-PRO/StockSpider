@@ -14,7 +14,7 @@ interface Supplier {
 }
 
 const SuppliersList = () => {
-  const { suppliers, addSupplier } = useData();
+  const { suppliers, addSupplier, updateSupplier, deleteSupplier } = useData();
   const { showSuccess, showError } = useToast();
   const [showModal, setShowModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
@@ -26,23 +26,26 @@ const SuppliersList = () => {
     address: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) {
       showError('Erreur', 'Le nom du fournisseur est requis');
       return;
     }
 
-    if (editingSupplier) {
-      // TODO: Implémenter la mise à jour
-      showSuccess('Fournisseur mis à jour', `${formData.name} a été mis à jour avec succès`);
-    } else {
-      addSupplier(formData);
-      showSuccess('Fournisseur ajouté', `${formData.name} a été ajouté avec succès`);
+    try {
+      if (editingSupplier) {
+        await updateSupplier(editingSupplier.id, formData);
+        showSuccess('Fournisseur mis à jour', `${formData.name} a été mis à jour avec succès`);
+      } else {
+        await addSupplier(formData);
+        showSuccess('Fournisseur ajouté', `${formData.name} a été ajouté avec succès`);
+      }
+      resetForm();
+    } catch (error) {
+      showError('Erreur', 'Une erreur est survenue');
     }
-
-    resetForm();
   };
 
   const resetForm = () => {
@@ -69,10 +72,14 @@ const SuppliersList = () => {
     setShowModal(true);
   };
 
-  const handleDelete = (supplier: Supplier) => {
+  const handleDelete = async (supplier: Supplier) => {
     if (window.confirm(`Êtes-vous sûr de vouloir supprimer le fournisseur "${supplier.name}" ?`)) {
-      // TODO: Implémenter la suppression
-      showSuccess('Fournisseur supprimé', `${supplier.name} a été supprimé avec succès`);
+      try {
+        await deleteSupplier(supplier.id);
+        showSuccess('Fournisseur supprimé', `${supplier.name} a été supprimé avec succès`);
+      } catch (error) {
+        showError('Erreur', 'Impossible de supprimer le fournisseur');
+      }
     }
   };
 

@@ -37,6 +37,8 @@ const upload = multer({
   }
 });
 
+const getBaseUrl = (req) => `${req.protocol}://${req.get('host')}`;
+
 // GET /api/components - Récupérer tous les composants
 router.get('/', auth, async (req, res) => {
   try {
@@ -358,7 +360,7 @@ router.post('/upload-image', auth, upload.single('image'), async (req, res) => {
     }
 
     // Construire l'URL de l'image
-    const imageUrl = `http://localhost:3001/uploads/components/${req.file.filename}`;
+    const imageUrl = `${getBaseUrl(req)}/uploads/components/${req.file.filename}`;
 
     // Mettre à jour le composant avec la nouvelle image
     await db.query('UPDATE components SET image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [imageUrl, componentId]);

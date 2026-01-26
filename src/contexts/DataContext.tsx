@@ -12,33 +12,35 @@ interface DataContextType {
   movements: StockMovement[];
   dashboardStats: DashboardStats | null;
   loading: boolean;
-  
+
   // Actions pour les composants
   addComponent: (component: Omit<Component, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Component>;
   updateComponent: (id: string, updates: Partial<Component>) => Promise<Component>;
   deleteComponent: (id: string) => Promise<void>;
-  
+
   // Actions pour les produits
   addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Product>;
   updateProduct: (id: string, updates: Partial<Product>) => Promise<Product>;
   deleteProduct: (id: string) => Promise<void>;
-  
+
   // Actions pour les fournisseurs
-  addSupplier: (supplier: Omit<Supplier, 'id' | 'createdAt'>) => void;
-  
+  addSupplier: (supplier: Omit<Supplier, 'id' | 'createdAt'>) => Promise<Supplier>;
+  updateSupplier: (id: string, updates: Partial<Supplier>) => Promise<Supplier>;
+  deleteSupplier: (id: string) => Promise<void>;
+
   // Actions pour le stock
   updateStock: (componentId: string, quantity: number, type: 'in' | 'out' | 'adjustment', reason: string) => Promise<void>;
-  
+
   // Actions pour l'assemblage
   assembleProduct: (productId: string, quantity?: number) => Promise<boolean>;
   addProductToAssembly: (productId: string, quantity: number) => Promise<void>;
-  
+
   // Utilitaires
   loadData: () => Promise<void>;
   reloadComponents: () => Promise<void>;
   getDashboardStats: () => DashboardStats;
   getLowStockComponents: () => Component[];
-  
+
   // Indicateurs de synchronisation
   isSyncing: boolean;
   lastSyncTime: Date | null;
@@ -68,7 +70,7 @@ interface DataProviderProps {
 
 export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const { showError, showSuccess } = useToast();
-  
+
   // États des données
   const [components, setComponents] = useState<Component[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -85,7 +87,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [movements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
-  
+
   // États de synchronisation
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
@@ -118,11 +120,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   ): Promise<T> => {
     setIsSyncing(true);
     showSyncNotification('loading', 'Synchronisation en cours...');
-    
+
     try {
       const result = await operation();
       setLastSyncTime(new Date());
-      
+
       if (successMessage) {
         // Afficher uniquement la notification de synchronisation pour éviter les doublons
         showSyncNotification('success', 'Synchronisation réussie', successMessage);
@@ -143,15 +145,17 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const loadData = useCallback(async () => {
     await syncWithIndicator(async () => {
       setLoading(true);
-      const [componentsData, productsData, statsData] = await Promise.all([
+      const [componentsData, productsData, statsData, suppliersData] = await Promise.all([
         apiService.getComponents(),
         apiService.getProducts(),
-        apiService.getDashboardStats()
+        apiService.getDashboardStats(),
+        apiService.getSuppliers()
       ]);
-      
+
       setComponents(componentsData);
       setProducts(productsData);
       setDashboardStats(statsData);
+      setSuppliers(suppliersData);
     }, 'Données chargées avec succès', 'Impossible de charger les données');
   }, [syncWithIndicator]);
 
@@ -168,7 +172,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const updateComponent = useCallback(async (id: string, updates: Partial<Component>) => {
     return await syncWithIndicator(async () => {
       const updatedComponent = await apiService.updateComponent(id, updates);
-      setComponents(prev => 
+      setComponents(prev =>
         prev.map(comp => comp.id === id ? updatedComponent : comp)
       );
       showSuccess('Composant mis à jour', 'Le composant a été modifié avec succès');
@@ -189,11 +193,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     return await syncWithIndicator(async () => {
       const newProduct = await apiService.createProduct(product);
       setProducts(prev => [...prev, newProduct]);
-      
+
       // Recharger les composants pour mettre à jour les stocks
       const componentsData = await apiService.getComponents();
       setComponents(componentsData);
-      
+
       showSuccess('Produit créé', `${product.name} a été créé avec succès`);
       return newProduct;
     }, undefined, 'Impossible d\'ajouter le produit');
@@ -202,16 +206,16 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const updateProduct = useCallback(async (id: string, updates: Partial<Product>) => {
     return await syncWithIndicator(async () => {
       const updatedProduct = await apiService.updateProduct(id, updates);
-      setProducts(prev => 
+      setProducts(prev =>
         prev.map(prod => prod.id === id ? updatedProduct : prod)
       );
-      
+
       // Recharger les composants si nécessaire
       if (updates.components) {
         const componentsData = await apiService.getComponents();
         setComponents(componentsData);
       }
-      
+
       // Synchroniser automatiquement les produits en cours d'assemblage si les composants ont changé
       if (updates.components) {
         try {
@@ -226,10 +230,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
                   if (!component) {
                     throw new Error(`Composant introuvable: ${pc.componentId}`);
                   }
-                  
+
                   const requiredQuantity = (Number(pc.quantity) || 0) * productInAssembly.quantityToAssemble;
                   const availableQuantity = component.quantity;
-                  
+
                   return {
                     componentId: component.id,
                     componentName: component.designation,
@@ -239,7 +243,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
                     isAvailable: availableQuantity >= requiredQuantity
                   };
                 });
-                
+
                 return {
                   ...productInAssembly,
                   componentsRequired: newComponentsRequired
@@ -247,7 +251,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
               }
               return productInAssembly;
             });
-            
+
             // Sauvegarder les produits mis à jour
             localStorage.setItem('productsInAssembly', JSON.stringify(updatedProductsInAssembly));
           }
@@ -255,7 +259,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           console.error('Erreur synchronisation produits en cours:', error);
         }
       }
-      
+
       showSuccess('Produit mis à jour', 'Le produit a été modifié avec succès');
       return updatedProduct;
     }, undefined, 'Impossible de mettre à jour le produit');
@@ -270,15 +274,33 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   }, [syncWithIndicator, showSuccess]);
 
   // Actions pour les fournisseurs
-  const addSupplier = useCallback((supplier: Omit<Supplier, 'id' | 'createdAt'>) => {
-    const newSupplier: Supplier = {
-      ...supplier,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-    };
-    setSuppliers(prev => [...prev, newSupplier]);
-    showSuccess('Fournisseur ajouté', `${supplier.name} a été ajouté avec succès`);
-  }, [showSuccess]);
+  const addSupplier = useCallback(async (supplier: Omit<Supplier, 'id' | 'createdAt'>) => {
+    return await syncWithIndicator(async () => {
+      const newSupplier = await apiService.createSupplier(supplier);
+      setSuppliers(prev => [...prev, newSupplier]);
+      showSuccess('Fournisseur ajouté', `${supplier.name} a été ajouté avec succès`);
+      return newSupplier;
+    }, undefined, 'Impossible d\'ajouter le fournisseur');
+  }, [syncWithIndicator, showSuccess]);
+
+  const updateSupplier = useCallback(async (id: string, updates: Partial<Supplier>) => {
+    return await syncWithIndicator(async () => {
+      const updatedSupplier = await apiService.updateSupplier(id, updates);
+      setSuppliers(prev =>
+        prev.map(s => s.id === id ? updatedSupplier : s)
+      );
+      showSuccess('Fournisseur mis à jour', 'Le fournisseur a été modifié avec succès');
+      return updatedSupplier;
+    }, undefined, 'Impossible de mettre à jour le fournisseur');
+  }, [syncWithIndicator, showSuccess]);
+
+  const deleteSupplier = useCallback(async (id: string) => {
+    await syncWithIndicator(async () => {
+      await apiService.deleteSupplier(id);
+      setSuppliers(prev => prev.filter(s => s.id !== id));
+      showSuccess('Fournisseur supprimé', 'Le fournisseur a été supprimé avec succès');
+    }, undefined, 'Impossible de supprimer le fournisseur');
+  }, [syncWithIndicator, showSuccess]);
 
   // Actions pour le stock
   const updateStock = useCallback(async (componentId: string, quantity: number, type: 'in' | 'out' | 'adjustment', reason: string) => {
@@ -300,9 +322,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       newQuantity = Math.max(0, newQuantity);
 
       // Mise à jour optimiste locale
-      setComponents(prev => 
-        prev.map(comp => 
-          comp.id === componentId 
+      setComponents(prev =>
+        prev.map(comp =>
+          comp.id === componentId
             ? { ...comp, quantity: newQuantity, updatedAt: new Date().toISOString() }
             : comp
         )
@@ -310,7 +332,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
       // Mise à jour serveur
       await apiService.updateStock(componentId, quantity, type, reason);
-      
+
       showSuccess('Stock mis à jour', `Stock de ${currentComponent.designation} mis à jour`);
     }, undefined, 'Impossible de mettre à jour le stock');
   }, [components, syncWithIndicator, showSuccess]);
@@ -322,7 +344,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       if (!product) {
         throw new Error('Produit non trouvé');
       }
-      
+
       // Vérifier le stock suffisant
       const insufficientComponents: Array<{
         name: string;
@@ -330,16 +352,16 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         available: number;
         componentId: string;
       }> = [];
-      
+
       for (const pc of product.components) {
         const component = components.find(c => c.id === pc.componentId);
         if (!component) {
           throw new Error(`Composant introuvable: ${pc.componentId}`);
         }
-        
+
         const requiredQuantity = (Number(pc.quantity) || 0) * quantity;
         const availableQuantity = component.quantity;
-        
+
         if (availableQuantity < requiredQuantity) {
           insufficientComponents.push({
             name: component.designation,
@@ -349,46 +371,46 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           });
         }
       }
-      
+
       if (insufficientComponents.length > 0) {
         const errorMessage = insufficientComponents
           .map(comp => `${comp.name}: ${comp.required} requis, ${comp.available} disponible`)
           .join('\n');
         throw new Error(`Stock insuffisant pour les composants suivants :\n${errorMessage}`);
       }
-      
+
       // Soustraire les composants requis
       for (const pc of product.components) {
         const component = components.find(c => c.id === pc.componentId);
         if (component) {
           const requiredQuantity = (Number(pc.quantity) || 0) * quantity;
           const newQuantity = component.quantity - requiredQuantity;
-          
-          setComponents(prev => 
-            prev.map(comp => 
-              comp.id === component.id 
+
+          setComponents(prev =>
+            prev.map(comp =>
+              comp.id === component.id
                 ? { ...comp, quantity: newQuantity, updatedAt: new Date().toISOString() }
                 : comp
             )
           );
-          
+
           await apiService.updateStock(component.id, requiredQuantity, 'out', `Assemblage de ${product.name} (${quantity} unité${quantity > 1 ? 's' : ''})`);
         }
       }
-      
+
       // Ajouter la quantité produite au stock du produit fini
       const newProductQuantity = (Number(product.quantity) || 0) + quantity;
-      
-      setProducts(prev => 
-        prev.map(prod => 
-          prod.id === productId 
+
+      setProducts(prev =>
+        prev.map(prod =>
+          prod.id === productId
             ? { ...prod, quantity: newProductQuantity, updatedAt: new Date().toISOString() }
             : prod
         )
       );
-      
+
       await apiService.updateProduct(productId, { quantity: newProductQuantity });
-      
+
       // Créer un produit assemblé pour l'historique
       const assembledProduct: AssembledProduct = {
         id: `assembled_${Date.now()}_${productId}`,
@@ -401,7 +423,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         totalCost: Number(product.productionCost) || 0,
         sellingPrice: Number(product.sellingPrice) || 0
       };
-      
+
       setAssembledProducts(prev => {
         const newList = [assembledProduct, ...prev];
         try {
@@ -411,7 +433,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         }
         return newList;
       });
-      
+
       showSuccess('Produit assemblé', `${product.name} assemblé avec succès (${quantity} unité${quantity > 1 ? 's' : ''})`);
       return true;
     }, undefined, 'Impossible d\'assembler le produit');
@@ -420,24 +442,24 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   // Fonction pour regrouper les produits identiques
   const groupProductsById = useCallback((products: ProductInAssembly[]): ProductInAssembly[] => {
     const grouped = new Map<string, ProductInAssembly>();
-    
+
     products.forEach(product => {
       const key = product.productId;
-      
+
       if (grouped.has(key)) {
         const existing = grouped.get(key)!;
-        
+
         // Fusionner seulement si les deux sont en statut "pending"
         if (existing.status === 'pending' && product.status === 'pending') {
           // Cumuler les quantités
           const newQuantity = existing.quantityToAssemble + product.quantityToAssemble;
-          
+
           // Cumuler les composants requis
           const mergedComponents = existing.componentsRequired.map(existingComp => {
-            const matchingComp = product.componentsRequired.find(comp => 
+            const matchingComp = product.componentsRequired.find(comp =>
               comp.componentId === existingComp.componentId
             );
-            
+
             if (matchingComp) {
               return {
                 ...existingComp,
@@ -445,10 +467,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
                 isAvailable: existingComp.availableQuantity >= (existingComp.requiredQuantity + matchingComp.requiredQuantity)
               };
             }
-            
+
             return existingComp;
           });
-          
+
           // Créer le produit fusionné
           const mergedProduct: ProductInAssembly = {
             ...existing,
@@ -457,7 +479,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
             createdAt: existing.createdAt, // Garder la date de création la plus ancienne
             createdBy: existing.createdBy
           };
-          
+
           grouped.set(key, mergedProduct);
         } else {
           // Si les statuts sont différents, garder les deux séparément
@@ -467,7 +489,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         grouped.set(key, product);
       }
     });
-    
+
     return Array.from(grouped.values());
   }, []);
 
@@ -477,9 +499,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       // Récupérer tous les produits en cours d'assemblage
       const savedProducts = localStorage.getItem('productsInAssembly');
       if (!savedProducts) return;
-      
+
       const productsInAssembly: ProductInAssembly[] = JSON.parse(savedProducts);
-      
+
       // Agréger tous les besoins par composant
       const aggregatedNeeds = new Map<string, {
         componentId: string;
@@ -489,7 +511,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         unitPrice: number;
         productNames: string[];
       }>();
-      
+
       productsInAssembly.forEach(product => {
         if (product.status === 'pending' || product.status === 'in_progress') {
           product.componentsRequired.forEach(comp => {
@@ -497,7 +519,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
             if (currentComponent) {
               const key = comp.componentId;
               const existing = aggregatedNeeds.get(key);
-              
+
               if (existing) {
                 existing.totalRequired += comp.requiredQuantity;
                 if (!existing.productNames.includes(product.productName)) {
@@ -517,17 +539,17 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           });
         }
       });
-      
+
       // Calculer les quantités à acheter pour chaque composant agrégé
       const aggregatedComponentsToBuy: ComponentToBuy[] = Array.from(aggregatedNeeds.values())
         .map(need => {
           const currentComponent = components.find(c => c.id === need.componentId);
           if (!currentComponent) return null;
-          
+
           const availableQuantity = Number(currentComponent.quantity || 0);
           const quantityToBuy = Math.max(0, need.totalRequired - availableQuantity);
           const totalCost = quantityToBuy * need.unitPrice;
-          
+
           return {
             id: `aggregated_${need.componentId}`,
             componentId: need.componentId,
@@ -545,7 +567,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           };
         })
         .filter(comp => comp !== null && comp.quantityToBuy > 0) as ComponentToBuy[];
-      
+
       // Sauvegarder les composants agrégés
       localStorage.setItem('componentsToBuy', JSON.stringify(aggregatedComponentsToBuy));
     } catch (error) {
@@ -567,10 +589,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         if (!component) {
           throw new Error(`Composant introuvable: ${pc.componentId}`);
         }
-        
+
         const requiredQuantity = (Number(pc.quantity) || 0) * quantity;
         const availableQuantity = component.quantity;
-        
+
         return {
           componentId: component.id,
           // Unifier l'affichage: utiliser la désignation comme nom visible
@@ -648,7 +670,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       } else {
         showSuccess('Produit ajouté à l\'assemblage', `${product.name} prêt à être assemblé`);
       }
-      
+
       // Déclencher la synchronisation des composants à acheter
       setTimeout(() => {
         syncComponentsToBuy();
@@ -671,7 +693,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
     const lowStockComponents = components.filter(c => c.quantity <= c.minStock);
     const totalValue = components.reduce((sum, c) => sum + (c.quantity * c.unitPrice), 0);
-    
+
     return {
       totalComponents: components.length,
       totalProducts: products.length,
@@ -709,7 +731,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         syncComponentsToBuy();
       }
     };
-    
+
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [components, syncComponentsToBuy]);
@@ -723,7 +745,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     movements,
     dashboardStats,
     loading,
-    
+
     // Actions
     addComponent,
     updateComponent,
@@ -732,6 +754,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     updateProduct,
     deleteProduct,
     addSupplier,
+    updateSupplier,
+    deleteSupplier,
     updateStock,
     assembleProduct,
     addProductToAssembly,
@@ -739,7 +763,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     reloadComponents,
     getDashboardStats,
     getLowStockComponents,
-    
+
     // Indicateurs de synchronisation
     isSyncing,
     lastSyncTime,
@@ -761,6 +785,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     updateProduct,
     deleteProduct,
     addSupplier,
+    updateSupplier,
+    deleteSupplier,
     updateStock,
     assembleProduct,
     addProductToAssembly,

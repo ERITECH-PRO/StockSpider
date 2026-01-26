@@ -20,7 +20,7 @@ router.get('/', auth, async (req, res) => {
       FROM suppliers 
       ORDER BY name
     `);
-    
+
     res.json(suppliers);
   } catch (error) {
     console.error('Erreur récupération fournisseurs:', error);
@@ -87,7 +87,7 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(400).json({ error: 'Nom du fournisseur requis' });
     }
 
-    const [result] = await db.query(`
+    const result = await db.query(`
       UPDATE suppliers 
       SET name = ?, contact = ?, email = ?, phone = ?, address = ?
       WHERE id = ?
@@ -130,13 +130,13 @@ router.delete('/:id', auth, async (req, res) => {
       WHERE supplier = (SELECT name FROM suppliers WHERE id = ?)
     `, [id]);
 
-    if (usage[0].count > 0) {
-      return res.status(400).json({ 
-        error: 'Impossible de supprimer ce fournisseur car il est utilisé par des composants' 
+    if (usage && usage.count > 0) {
+      return res.status(400).json({
+        error: 'Impossible de supprimer ce fournisseur car il est utilisé par des composants'
       });
     }
 
-    const [result] = await db.query('DELETE FROM suppliers WHERE id = ?', [id]);
+    const result = await db.query('DELETE FROM suppliers WHERE id = ?', [id]);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Fournisseur non trouvé' });

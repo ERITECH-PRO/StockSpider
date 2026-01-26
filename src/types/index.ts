@@ -109,7 +109,93 @@ export interface Supplier {
   createdAt: string;
 }
 
-export type ComponentCategory = 
+export interface CompanySettings {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  matriculeFiscal?: string;
+  logoUrl?: string;
+}
+
+export interface AppSettings {
+  company: CompanySettings;
+  inventory?: {
+    lowStockThreshold?: number;
+    autoReorder?: boolean;
+    currency?: string;
+  };
+  notifications?: {
+    lowStock?: boolean;
+    newMovements?: boolean;
+    emailAlerts?: boolean;
+  };
+  system?: {
+    timezone?: string;
+    dateFormat?: string;
+    language?: string;
+  };
+}
+
+export interface Client {
+  id: string;
+  companyName: string;
+  matriculeFiscal?: string;
+  address: string;
+  phone: string;
+  email: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Chantier {
+  id: string;
+  clientId?: string | null;
+  clientCompanyName?: string | null;
+  name: string;
+  address: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BonSortieListItem {
+  id: string;
+  clientId: string;
+  clientCompanyName: string;
+  chantierId: string;
+  chantierName: string;
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;
+}
+
+export interface BonSortieItem {
+  id: string;
+  bonSortieId: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  productDescription: string;
+  quantity: number;
+}
+
+export interface BonSortieDetail {
+  id: string;
+  clientId: string;
+  clientCompanyName: string;
+  clientAddress: string;
+  clientPhone: string;
+  clientEmail: string;
+  chantierId: string;
+  chantierName: string;
+  chantierAddress: string;
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;
+  items: BonSortieItem[];
+}
+
+export type ComponentCategory =
   | 'condensateur'
   | 'resistance'
   | 'relais'

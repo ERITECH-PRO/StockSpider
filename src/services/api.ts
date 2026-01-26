@@ -1,4 +1,15 @@
-import { Component, Product, User, DashboardStats } from '../types';
+import {
+  Component,
+  Product,
+  User,
+  DashboardStats,
+  AppSettings,
+  Client,
+  Chantier,
+  BonSortieListItem,
+  BonSortieDetail,
+  Supplier,
+} from '../types';
 
 const resolvedApiBase = (() => {
   const envUrl = (import.meta as any)?.env?.VITE_API_URL as string | undefined;
@@ -31,7 +42,7 @@ class ApiService {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
-    
+
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -62,7 +73,7 @@ class ApiService {
 
     this.token = result.token;
     localStorage.setItem('stockspider_token', result.token);
-    
+
     return result;
   }
 
@@ -184,6 +195,140 @@ class ApiService {
     } catch {
       return false;
     }
+  }
+
+  // Settings
+  async getSettings(): Promise<AppSettings> {
+    return this.request<AppSettings>('/settings');
+  }
+
+  async updateSettings(settings: Partial<AppSettings>): Promise<{ message: string; settings: AppSettings }> {
+    return this.request<{ message: string; settings: AppSettings }>('/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  }
+
+  async uploadCompanyLogo(imageFile: File): Promise<{ success: boolean; logoUrl: string }> {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+
+    const response = await fetch(`${API_BASE_URL}/settings/upload-logo`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+      },
+      body: formData,
+    });
+
+    if (response.status === 401) {
+      this.logout();
+      throw new Error('Non autorisé (401)');
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Erreur réseau' }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  // Clients
+  async getClients(): Promise<Client[]> {
+    return this.request<Client[]>('/clients');
+  }
+
+  async createClient(payload: Pick<Client, 'companyName' | 'matriculeFiscal' | 'address' | 'phone' | 'email'>): Promise<Client> {
+    return this.request<Client>('/clients', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateClient(id: string, payload: Partial<Pick<Client, 'companyName' | 'matriculeFiscal' | 'address' | 'phone' | 'email'>>): Promise<Client> {
+    return this.request<Client>(`/clients/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteClient(id: string): Promise<void> {
+    await this.request(`/clients/${id}`, { method: 'DELETE' });
+  }
+
+  // Fournisseurs
+  async getSuppliers(): Promise<Supplier[]> {
+    return this.request<Supplier[]>('/suppliers');
+  }
+
+  async createSupplier(payload: Omit<Supplier, 'id' | 'createdAt'>): Promise<Supplier> {
+    return this.request<Supplier>('/suppliers', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateSupplier(id: string, payload: Partial<Omit<Supplier, 'id' | 'createdAt'>>): Promise<Supplier> {
+    return this.request<Supplier>(`/suppliers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteSupplier(id: string): Promise<void> {
+    await this.request(`/suppliers/${id}`, { method: 'DELETE' });
+  }
+
+  // Chantiers
+  async getChantiers(clientId?: string): Promise<Chantier[]> {
+    const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
+    return this.request<Chantier[]>(`/chantiers${qs}`);
+  }
+
+  async createChantier(payload: { clientId?: string | null; name: string; address: string }): Promise<Chantier> {
+    return this.request<Chantier>('/chantiers', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateChantier(id: string, payload: Partial<{ clientId?: string | null; name: string; address: string }>): Promise<Chantier> {
+    return this.request<Chantier>(`/chantiers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteChantier(id: string): Promise<void> {
+    await this.request(`/chantiers/${id}`, { method: 'DELETE' });
+  }
+
+  // Bons de sortie
+  async getBonsSortie(): Promise<BonSortieListItem[]> {
+    return this.request<BonSortieListItem[]>('/bons-sortie');
+  }
+
+  async getBonSortie(id: string): Promise<BonSortieDetail> {
+    return this.request<BonSortieDetail>(`/bons-sortie/${encodeURIComponent(id)}`);
+  }
+
+  async createBonSortie(payload: { clientId: string; chantierId: string; items: Array<{ productId: string; quantity: number }> }): Promise<{ id: string; message: string }> {
+    return this.request<{ id: string; message: string }>('/bons-sortie', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateBonSortie(id: string, payload: { clientId: string; chantierId: string; items: Array<{ productId: string; quantity: number }> }): Promise<{ id: string; message: string }> {
+    return this.request<{ id: string; message: string }>(`/bons-sortie/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteBonSortie(id: string): Promise<void> {
+    await this.request(`/bons-sortie/${encodeURIComponent(id)}`, { method: 'DELETE' });
   }
 }
 

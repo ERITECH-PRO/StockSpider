@@ -13,7 +13,7 @@ interface ComponentModalProps {
 }
 
 const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => {
-  const { addComponent, updateComponent } = useData();
+  const { addComponent, updateComponent, suppliers } = useData();
   const { showSuccess, showError } = useToast();
   const isEdit = !!component;
   const [showImportModal, setShowImportModal] = useState(false);
@@ -36,7 +36,7 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
   // Mettre à jour le formulaire quand le composant change
   useEffect(() => {
     console.log('🔧 ComponentModal - Component reçu:', component);
-    
+
     if (component) {
       console.log('🔧 ComponentModal - Pré-remplissage du formulaire avec:', {
         designation: component.designation,
@@ -45,7 +45,7 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
         quantity: component.quantity,
         unitPrice: component.unitPrice
       });
-      
+
       setFormData({
         designation: component.designation || '',
         name: component.name || '',
@@ -57,7 +57,7 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
         category: component.category || 'autre' as ComponentCategory,
         minStock: component.minStock || 0,
       });
-      
+
       // Charger l'image existante si elle existe
       setImagePreview(component.imageUrl || null);
       setSelectedImage(null);
@@ -75,7 +75,7 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
         category: 'autre' as ComponentCategory,
         minStock: 0,
       });
-      
+
       // Réinitialiser l'image
       setImagePreview(null);
       setSelectedImage(null);
@@ -105,21 +105,21 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       let imageUrl = component?.imageUrl; // Garder l'image existante par défaut
-      
+
       if (isEdit && component) {
         // Pour un composant existant, uploader l'image si nécessaire
         if (selectedImage) {
           imageUrl = await uploadImage(selectedImage);
         }
-        
+
         const componentData = {
           ...formData,
           imageUrl
         };
-        
+
         updateComponent(component.id, componentData);
         showSuccess('Composant mis à jour', `${formData.designation} a été mis à jour avec succès`);
       } else {
@@ -128,9 +128,9 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
           ...formData,
           imageUrl: undefined // Pas d'image pour l'instant
         };
-        
+
         const newComponent = await addComponent(componentData);
-        
+
         // Puis uploader l'image si nécessaire
         if (selectedImage && newComponent) {
           try {
@@ -142,10 +142,10 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
             showError('Attention', 'Composant créé mais image non uploadée');
           }
         }
-        
+
         showSuccess('Composant ajouté', `${formData.designation} a été ajouté avec succès`);
       }
-      
+
       // Reset form
       setFormData({
         designation: '',
@@ -158,14 +158,14 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
         category: 'autre' as ComponentCategory,
         minStock: 0,
       });
-      
+
       // Reset image
       setSelectedImage(null);
       setImagePreview(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-      
+
       onClose();
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
@@ -181,21 +181,21 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
     const file = event.target.files?.[0];
     if (file) {
       console.log('🖼️ Fichier sélectionné:', file.name, file.type, file.size);
-      
+
       // Vérifier le type de fichier
       if (!file.type.startsWith('image/')) {
         showError('Erreur', 'Veuillez sélectionner un fichier image (PNG, JPG, etc.)');
         return;
       }
-      
+
       // Vérifier la taille (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         showError('Erreur', 'L\'image ne doit pas dépasser 5MB');
         return;
       }
-      
+
       setSelectedImage(file);
-      
+
       // Créer une prévisualisation
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -235,7 +235,7 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
         reader.readAsDataURL(file);
       });
     }
-    
+
     // Pour un composant existant, on fait un vrai upload
     try {
       const { imageUrl } = await apiService.uploadComponentImage(component.id, file);
@@ -420,13 +420,18 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
             <label className="block text-sm font-medium text-3s-black mb-2 font-inter">
               Fournisseur
             </label>
-            <input
-              type="text"
+            <select
               value={formData.supplier}
               onChange={(e) => handleChange('supplier', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter transition-all duration-200 hover:shadow-card-hover"
-              placeholder="Ex: Farnell, Mouser..."
-            />
+            >
+              <option value="">Choisir un fournisseur</option>
+              {suppliers.map(s => (
+                <option key={s.id} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Upload d'image */}
@@ -465,13 +470,12 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
                   </p>
                 </div>
               )}
-              
+
               {/* Zone de téléchargement */}
-              <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                imagePreview 
-                  ? 'border-green-300 bg-green-50' 
-                  : 'border-gray-300 hover:border-3s-blue hover:bg-blue-50'
-              }`}>
+              <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${imagePreview
+                ? 'border-green-300 bg-green-50'
+                : 'border-gray-300 hover:border-3s-blue hover:bg-blue-50'
+                }`}>
                 <input
                   ref={fileInputRef}
                   type="file"

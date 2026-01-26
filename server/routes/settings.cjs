@@ -1,20 +1,59 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const db = require('../database.cjs');
 const auth = require('../middleware/auth.cjs');
 
 const router = express.Router();
 
+const requireManagerOrAdmin = (req, res) => {
+  if (!['admin', 'manager'].includes(req.user.role)) {
+    res.status(403).json({ error: 'Accès refusé' });
+    return false;
+  }
+  return true;
+};
+
+const getBaseUrl = (req) => `${req.protocol}://${req.get('host')}`;
+
+// Configuration multer pour logo société
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../uploads/company');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, 'company-logo-' + uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Seules les images sont autorisées'), false);
+  },
+});
+
 // GET /api/settings - Récupérer les paramètres de l'application
 router.get('/', auth, async (req, res) => {
   try {
-    // Pour l'instant, retourner des paramètres par défaut
-    // Plus tard, on pourra stocker ces paramètres en base de données
+    // Charger depuis la base (fallback valeurs par défaut)
+    const [row] = await db.query('SELECT * FROM app_settings WHERE id = 1');
     const settings = {
       company: {
-        name: '3S IT',
-        address: '',
-        phone: '',
-        email: ''
+        name: row?.company_name ?? '3S IT',
+        address: row?.company_address ?? '',
+        phone: row?.company_phone ?? '',
+        email: row?.company_email ?? '',
+        matriculeFiscal: row?.company_matricule_fiscal ?? '',
+        logoUrl: row?.company_logo_url ?? ''
       },
       inventory: {
         lowStockThreshold: 10,
@@ -43,10 +82,7 @@ router.get('/', auth, async (req, res) => {
 // PUT /api/settings - Mettre à jour les paramètres
 router.put('/', auth, async (req, res) => {
   try {
-    // Vérifier que l'utilisateur est admin ou manager
-    if (!['admin', 'manager'].includes(req.user.role)) {
-      return res.status(403).json({ error: 'Accès refusé' });
-    }
+    if (!requireManagerOrAdmin(req, res)) return;
 
     const {
       company,
@@ -55,10 +91,53 @@ router.put('/', auth, async (req, res) => {
       system
     } = req.body;
 
-    // Ici, on pourrait sauvegarder les paramètres en base de données
-    // Pour l'instant, on retourne juste les paramètres reçus
+    // Sauvegarder au moins la section company en DB
+    if (company) {
+      const name = company.name ?? company.companyName ?? undefined;
+      const address = company.address ?? undefined;
+      const phone = company.phone ?? undefined;
+      const email = company.email ?? undefined;
+      const matriculeFiscal = company.matriculeFiscal ?? undefined;
+
+      const fields = [];
+      const values = [];
+      if (name !== undefined) {
+        fields.push('company_name = ?');
+        values.push(name);
+      }
+      if (address !== undefined) {
+        fields.push('company_address = ?');
+        values.push(address);
+      }
+      if (phone !== undefined) {
+        fields.push('company_phone = ?');
+        values.push(phone);
+      }
+      if (email !== undefined) {
+        fields.push('company_email = ?');
+        values.push(email);
+      }
+      if (matriculeFiscal !== undefined) {
+        fields.push('company_matricule_fiscal = ?');
+        values.push(matriculeFiscal);
+      }
+
+      if (fields.length > 0) {
+        await db.query(`UPDATE app_settings SET ${fields.join(', ')} WHERE id = 1`, values);
+      }
+    }
+
+    // Retourner settings complets
+    const [row] = await db.query('SELECT * FROM app_settings WHERE id = 1');
     const updatedSettings = {
-      company: company || {},
+      company: {
+        name: row?.company_name ?? '3S IT',
+        address: row?.company_address ?? '',
+        phone: row?.company_phone ?? '',
+        email: row?.company_email ?? '',
+        matriculeFiscal: row?.company_matricule_fiscal ?? '',
+        logoUrl: row?.company_logo_url ?? '',
+      },
       inventory: inventory || {},
       notifications: notifications || {},
       system: system || {}
@@ -71,6 +150,38 @@ router.put('/', auth, async (req, res) => {
   } catch (error) {
     console.error('Erreur mise à jour paramètres:', error);
     res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// POST /api/settings/upload-logo - Upload logo société
+router.post('/upload-logo', auth, upload.single('image'), async (req, res) => {
+  try {
+    if (!requireManagerOrAdmin(req, res)) return;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucune image fournie' });
+    }
+
+    // Supprimer l'ancien logo si existant
+    const [row] = await db.query('SELECT company_logo_url FROM app_settings WHERE id = 1');
+    const existingUrl = row?.company_logo_url;
+    if (existingUrl) {
+      const oldPath = path.join(__dirname, '../uploads/company', path.basename(existingUrl));
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+    }
+
+    const logoUrl = `${getBaseUrl(req)}/uploads/company/${req.file.filename}`;
+    await db.query('UPDATE app_settings SET company_logo_url = ? WHERE id = 1', [logoUrl]);
+
+    res.json({ success: true, logoUrl });
+  } catch (error) {
+    console.error('Erreur upload logo:', error);
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: 'Erreur lors de l\'upload du logo' });
   }
 });
 
