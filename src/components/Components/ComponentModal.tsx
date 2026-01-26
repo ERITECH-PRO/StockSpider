@@ -3,7 +3,7 @@ import { X, Package, Upload, Image, Trash2 } from 'lucide-react';
 import { Component, ComponentCategory } from '../../types';
 import { useData } from '../../hooks/useData';
 import { useToast } from '../../hooks/useToast';
-import { apiService } from '../../services/api';
+import { apiService, getImageUrl } from '../../services/api';
 import ComponentImportModal from './ComponentImportModal';
 
 interface ComponentModalProps {
@@ -445,7 +445,7 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
                 <div className="relative inline-block">
                   <div className="relative">
                     <img
-                      src={imagePreview}
+                      src={getImageUrl(imagePreview)}
                       alt="Prévisualisation"
                       className="w-32 h-32 object-cover rounded-lg border border-gray-300 shadow-sm"
                       onLoad={() => console.log('🖼️ Image chargée avec succès:', imagePreview)}
