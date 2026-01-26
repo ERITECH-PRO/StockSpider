@@ -27,6 +27,7 @@ const allowedOrigins = new Set([
   'http://localhost:5174',
   'http://localhost:3000',
   'http://185.183.35.80:5174',
+  'https://stock.spiderhome.org',
   process.env.FRONTEND_ORIGIN || ''
 ].filter(Boolean));
 
