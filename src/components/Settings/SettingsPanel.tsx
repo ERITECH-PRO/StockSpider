@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Save, Database, Bell, Globe, Shield, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
-import { apiService } from '../../services/api';
+import { apiService, getImageUrl } from '../../services/api';
 
 interface AppSettings {
   company: {
@@ -192,7 +192,7 @@ const SettingsPanel = () => {
               <div className="flex items-start gap-4">
                 <div className="w-24 h-24 border border-gray-200 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden">
                   {settings.company.logoUrl ? (
-                    <img src={settings.company.logoUrl} alt="Logo société" className="max-w-full max-h-full object-contain" />
+                    <img src={getImageUrl(settings.company.logoUrl)} alt="Logo société" className="max-w-full max-h-full object-contain" />
                   ) : (
                     <ImageIcon className="w-8 h-8 text-gray-400" />
                   )}

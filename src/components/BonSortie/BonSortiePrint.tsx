@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import type { AppSettings, BonSortieDetail } from '../../types';
+import { getImageUrl } from '../../services/api';
 
 interface BonSortiePrintProps {
   bon: BonSortieDetail;
@@ -51,7 +52,7 @@ const BonSortiePrint: React.FC<BonSortiePrintProps> = ({ bon, settings, onClose 
         <div className="flex items-start justify-between gap-6">
           <div className="w-40 h-24 flex items-center">
             {settings.company.logoUrl ? (
-              <img src={settings.company.logoUrl} alt="Logo" className="max-w-full max-h-24 object-contain" />
+              <img src={getImageUrl(settings.company.logoUrl)} alt="Logo" className="max-w-full max-h-24 object-contain" />
             ) : (
               <div className="text-sm text-gray-400">Logo</div>
             )}

@@ -3,6 +3,7 @@ import { Edit2, Trash2, AlertTriangle, Package, Plus, Minus, Download, Upload } 
 import { Component, ComponentCategory } from '../../types';
 import { useData } from '../../hooks/useData';
 import { useToast } from '../../hooks/useToast';
+import { getImageUrl } from '../../services/api';
 import ConfirmDialog from '../UI/ConfirmDialog';
 import ComponentModal from './ComponentModal';
 import * as XLSX from 'xlsx';
@@ -398,7 +399,7 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
                   <div className="p-2 bg-3s-blue/10 rounded-lg relative w-12 h-12 flex items-center justify-center">
                     {component.imageUrl ? (
                       <img
-                        src={component.imageUrl}
+                        src={getImageUrl(component.imageUrl)}
                         alt={component.designation}
                         className="w-8 h-8 object-cover rounded border border-gray-200"
                         onError={(e) => {

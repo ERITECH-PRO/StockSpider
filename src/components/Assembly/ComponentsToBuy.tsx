@@ -4,6 +4,7 @@ import { useDataContext } from '../../contexts/DataContext';
 import { ComponentToBuy } from '../../types';
 import * as XLSX from 'xlsx';
 import { formatPrice } from '../../utils/priceFormatter';
+import { getImageUrl } from '../../services/api';
 
 const ComponentsToBuy: React.FC = () => {
   const { components, updateStock, reloadComponents } = useDataContext();
@@ -491,7 +492,7 @@ const ComponentsToBuy: React.FC = () => {
                       <div className="flex items-center justify-center">
                         {component?.imageUrl ? (
                           <img
-                            src={component.imageUrl}
+                            src={getImageUrl(component.imageUrl)}
                             alt={componentToBuy.componentName}
                             className="w-8 h-8 object-cover rounded border border-gray-200"
                             onError={(e) => {

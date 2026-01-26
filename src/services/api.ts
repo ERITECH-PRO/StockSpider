@@ -33,6 +33,44 @@ const resolvedApiBase = (() => {
 
 const API_BASE_URL = `${resolvedApiBase}/api`;
 
+// Helper function to convert image URLs to use the correct API base
+const getImageUrl = (imagePath: string): string => {
+  if (!imagePath) return '';
+  
+  // If it's already a full URL, extract the path portion and use current API base
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    try {
+      // Parse the URL to extract the path
+      const url = new URL(imagePath);
+      const pathWithQuery = url.pathname + url.search;
+      
+      // Reconstruct with current API base
+      // For uploads, use the base without /api suffix
+      if (pathWithQuery.startsWith('/uploads/')) {
+        return `${resolvedApiBase}${pathWithQuery}`;
+      }
+      
+      // For other API routes, use the full API base
+      return `${API_BASE_URL}${pathWithQuery}`;
+    } catch (e) {
+      // If URL parsing fails, fall back to simple replacement
+      return imagePath.replace(/https?:\/\/[^/]+/i, resolvedApiBase);
+    }
+  }
+  
+  // If it's a relative path, prepend the correct API base
+  if (!imagePath.startsWith('/')) {
+    return `${resolvedApiBase}/${imagePath}`;
+  }
+  
+  // Absolute path - check if it's an uploads path
+  if (imagePath.startsWith('/uploads/')) {
+    return `${resolvedApiBase}${imagePath}`;
+  }
+  
+  return `${resolvedApiBase}${imagePath}`;
+};
+
 class ApiService {
   private token: string | null = null;
 
@@ -346,3 +384,4 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
+export { getImageUrl };
