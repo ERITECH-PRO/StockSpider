@@ -14,8 +14,21 @@ import {
 const resolvedApiBase = (() => {
   const envUrl = (import.meta as any)?.env?.VITE_API_URL as string | undefined;
   if (envUrl) return envUrl.replace(/\/$/, '');
-  const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-  return `http://${host}:3002`;
+  
+  if (typeof window !== 'undefined') {
+    // Use api subdomain for production (https) or use localhost for development
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return `http://${hostname}:3002`;
+    } else {
+      // Production: use HTTPS with api subdomain
+      return `https://api.spiderhome.org`;
+    }
+  }
+  
+  return `http://localhost:3002`;
 })();
 
 const API_BASE_URL = `${resolvedApiBase}/api`;
