@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Edit2, Trash2, AlertTriangle, Package, Plus, Minus, Download, Upload } from 'lucide-react';
+import { Edit2, Trash2, Database, Package, Plus, Minus, Download, Upload } from 'lucide-react';
 import { Component, ComponentCategory } from '../../types';
 import { useData } from '../../hooks/useData';
 import { useToast } from '../../hooks/useToast';
@@ -32,7 +32,7 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categories: (ComponentCategory | 'all')[] = [
-    'all', 'condensateur', 'resistance', 'relais', 'microcontroleur', 
+    'all', 'condensateur', 'resistance', 'relais', 'microcontroleur',
     'connecteur', 'inducteur', 'diode', 'transistor', 'capteur', 'autre'
   ];
 
@@ -48,7 +48,7 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
         }
       }
     });
-    
+
     // Retourner le prochain ID disponible
     return `CP${maxNumber + 1}`;
   };
@@ -72,7 +72,7 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Composants');
-    
+
     // Ajuster la largeur des colonnes
     const colWidths = [
       { wch: 20 }, // Nom
@@ -131,8 +131,8 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
             }
 
             // Vérifier si le composant existe déjà
-            const existingComponent = components.find(c => 
-              c.productNumber === componentData.productNumber || 
+            const existingComponent = components.find(c =>
+              c.productNumber === componentData.productNumber ||
               (c.name === componentData.name && c.designation === componentData.designation)
             );
 
@@ -187,8 +187,8 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
   const filteredComponents = components
     .filter(component => {
       const matchesSearch = component.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           component.designation.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           component.productNumber.toLowerCase().includes(searchQuery.toLowerCase());
+        component.designation.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        component.productNumber.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = selectedCategory === 'all' || component.category === selectedCategory;
       return matchesSearch && matchesCategory;
     })
@@ -263,12 +263,12 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
     });
 
     setUpdatingStocks(prev => new Set(prev).add(componentId));
-    
+
     try {
       const reason = adjustment > 0 ? `Ajout manuel (+${adjustment})` : `Retrait manuel (${adjustment})`;
-      
+
       await updateStock(componentId, Math.abs(adjustment), adjustment > 0 ? 'in' : 'out', reason);
-      
+
       if (adjustment > 0) {
         showSuccess('Stock mis à jour', `+${adjustment} ${component.designation}`);
       } else {
@@ -302,7 +302,7 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
     if (!component) return;
 
     const currentStock = component.quantity;
-    
+
     if (newValue === 0) {
       showError('Information', 'Veuillez saisir une valeur à ajouter (supérieure à 0)');
       setStockAdjustments(prev => ({ ...prev, [componentId]: 0 }));
@@ -310,14 +310,14 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
     }
 
     setUpdatingStocks(prev => new Set(prev).add(componentId));
-    
+
     try {
       const reason = `Ajout manuel (+${newValue})`;
-      
+
       // Utiliser le type 'in' pour ajouter la valeur au stock existant
       await updateStock(componentId, newValue, 'in', reason);
       showSuccess('Stock mis à jour', `${component.designation}: ${currentStock} + ${newValue} = ${currentStock + newValue}`);
-      
+
       // Réinitialiser le champ
       setStockAdjustments(prev => ({ ...prev, [componentId]: 0 }));
     } finally {
@@ -330,234 +330,185 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
   };
 
   return (
-    <div className="space-y-6 p-6 bg-3s-gray-light min-h-full">
-      {/* Filters */}
-      <div className="card-3s p-4 animate-fade-in">
-        <div className="flex flex-wrap gap-4 items-center">
-          <div>
-            <label className="block text-sm font-medium text-3s-black mb-1 font-inter">Catégorie</label>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value as ComponentCategory | 'all')}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter transition-all duration-200"
-            >
-              {categories.map(category => (
-                <option key={category} value={category}>
-                  {getCategoryLabel(category)}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-3s-black mb-1 font-inter">Trier par</label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'name' | 'quantity' | 'price')}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter transition-all duration-200"
-            >
-              <option value="name">Nom</option>
-              <option value="quantity">Quantité</option>
-              <option value="price">Prix</option>
-            </select>
+    <div className="space-y-8 p-6 bg-3s-gray-light min-h-full font-inter">
+      {/* Premium Header & Filters */}
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+        <div className="flex-1 space-y-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-3s-blue/10 rounded-2xl shadow-inner">
+              <Database className="w-6 h-6 text-3s-blue" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-3s-black uppercase tracking-tight">Répertoire Composants</h1>
+              <p className="text-xs text-3s-gray-medium font-bold uppercase tracking-widest mt-1 opacity-70">Gestion technique de l'inventaire électronique</p>
+            </div>
           </div>
 
-          {/* Boutons d'export/import */}
-          <div className="flex gap-2 ml-auto">
-            <button
-              onClick={exportToExcel}
-              className="btn-3s-primary px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              <span className="font-inter">Exporter Excel</span>
-            </button>
-            
-            <label className="btn-3s-secondary px-4 py-2 rounded-lg flex items-center gap-2 transition-colors cursor-pointer">
-              <Upload className="w-4 h-4" />
-              <span className="font-inter">Importer Excel</span>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleFileImport}
-                className="hidden"
-              />
-            </label>
+          <div className="flex flex-wrap gap-4 items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100/50">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-[10px] font-black text-3s-gray-medium uppercase tracking-widest mb-2 ml-1">Filtrer par Catégorie</label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value as ComponentCategory | 'all')}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-3s-blue outline-none transition-all font-bold text-sm text-3s-black"
+              >
+                {categories.map(category => (
+                  <option key={category} value={category}>
+                    {getCategoryLabel(category)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="min-w-[150px]">
+              <label className="block text-[10px] font-black text-3s-gray-medium uppercase tracking-widest mb-2 ml-1">Trier par</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'name' | 'quantity' | 'price')}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-3s-blue outline-none transition-all font-bold text-sm text-3s-black"
+              >
+                <option value="name">Alphabétique (A-Z)</option>
+                <option value="quantity">Quantité (Décroissant)</option>
+                <option value="price">Valeur Unitaire</option>
+              </select>
+            </div>
+
+            <div className="h-10 w-px bg-gray-100 mx-2 hidden md:block"></div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={exportToExcel}
+                className="p-2.5 bg-3s-blue/5 text-3s-blue rounded-xl hover:bg-3s-blue hover:text-white transition-all border border-3s-blue/10 active:scale-95"
+                title="Exporter vers Excel"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+
+              <label className="p-2.5 bg-green-50 text-green-600 rounded-xl hover:bg-green-600 hover:text-white transition-all border border-green-100 cursor-pointer active:scale-95" title="Importer depuis Excel">
+                <Upload className="w-5 h-5" />
+                <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileImport} className="hidden" />
+              </label>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Components Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredComponents.map((component) => {
           const stockStatus = getStockStatus(component);
-          
-          return (
-            <div key={component.id} className="card-3s p-6 animate-fade-in hover:shadow-card-hover transition-all duration-200">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-3s-blue/10 rounded-lg relative w-12 h-12 flex items-center justify-center">
-                    {component.imageUrl ? (
-                      <img
-                        src={getImageUrl(component.imageUrl)}
-                        alt={component.designation}
-                        className="w-8 h-8 object-cover rounded border border-gray-200"
-                        onError={(e) => {
-                          // Fallback vers l'icône si l'image ne charge pas
-                          e.currentTarget.style.display = 'none';
-                          const fallbackIcon = e.currentTarget.nextElementSibling as HTMLElement;
-                          if (fallbackIcon) {
-                            fallbackIcon.style.display = 'block';
-                          }
-                        }}
-                      />
-                    ) : null}
-                    <Package 
-                      className={`w-5 h-5 text-3s-blue ${component.imageUrl ? 'hidden' : 'block'}`} 
-                      style={{ display: component.imageUrl ? 'none' : 'block' }}
-                    />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-3s-black font-inter">{component.name}</h3>
-                    <p className="text-sm text-3s-gray-medium font-inter">{component.designation}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-1">
-                  <button 
-                    onClick={() => handleEditComponent(component)}
-                    className="p-1 text-gray-400 hover:text-3s-blue hover:bg-blue-50 rounded transition-all duration-200"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteClick(component)}
-                    className="p-1 text-gray-400 hover:text-3s-red hover:bg-red-50 rounded transition-all duration-200"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+          const totalValue = Number(component.unitPrice || 0) * component.quantity;
 
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-3s-gray-medium font-inter">N° produit:</span>
-                  <span className="text-sm font-medium font-inter">{component.productNumber}</span>
+          return (
+            <div key={component.id} className="group relative bg-white rounded-[2rem] p-1 shadow-sm hover:shadow-2xl transition-all duration-500 border border-gray-100 overflow-hidden">
+              {/* Card Header Illustration/Background */}
+              <div className={`absolute top-0 right-0 w-32 h-32 rounded-full -mr-16 -mt-16 opacity-[0.03] group-hover:scale-150 transition-transform duration-700 ${stockStatus.color.replace('text', 'bg')}`}></div>
+
+              <div className="relative p-6 bg-white rounded-[1.8rem]">
+                <div className="flex items-start justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="shrink-0 w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 shadow-inner group-hover:border-3s-blue/30 transition-colors overflow-hidden">
+                      {component.imageUrl ? (
+                        <img
+                          src={getImageUrl(component.imageUrl)}
+                          alt={component.name}
+                          className="w-full h-full object-cover p-0.5 rounded-[14px]"
+                        />
+                      ) : (
+                        <Package className="w-8 h-8 text-3s-blue opacity-40 group-hover:scale-110 transition-transform" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[8px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded ${stockStatus.bg} ${stockStatus.color} border border-current opacity-70`}>{component.id}</span>
+                        <span className="text-[10px] font-black text-3s-blue uppercase tracking-widest opacity-60 truncate">{getCategoryLabel(component.category)}</span>
+                      </div>
+                      <h3 className="font-black text-lg text-3s-black uppercase tracking-tight truncate leading-tight mt-0.5">{component.name}</h3>
+                      <p className="text-xs font-bold text-3s-gray-medium truncate opacity-80">{component.designation}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <button onClick={() => handleEditComponent(component)} className="p-2 text-gray-300 hover:text-3s-blue hover:bg-blue-50 rounded-xl transition-all"><Edit2 className="w-4 h-4" /></button>
+                    <button onClick={() => handleDeleteClick(component)} className="p-2 text-gray-300 hover:text-3s-red hover:bg-red-50 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
+                  </div>
                 </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-sm text-3s-gray-medium font-inter">Footprint:</span>
-                  <span className="text-sm font-medium font-inter">{component.footprint}</span>
-                </div>
-                
-                {/* Stock Management */}
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm text-3s-gray-medium font-inter">Stock actuel:</span>
+
+                {/* Stock Context Bar */}
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  <div className="bg-gray-50/80 p-3 rounded-2xl border border-gray-100 group-hover:bg-white transition-colors">
+                    <span className="block text-[8px] font-black text-3s-gray-medium uppercase tracking-widest mb-1">Stock Actuel</span>
                     <div className="flex items-center gap-2">
-                      <span className={`text-lg font-bold font-inter ${
-                        component.quantity <= component.minStock ? 'text-3s-red' : 'text-3s-black'
-                      }`}>
+                      <div className={`w-2 h-2 rounded-full ${stockStatus.color.replace('text', 'bg')} ${component.quantity <= component.minStock ? 'animate-pulse' : ''}`}></div>
+                      <span className={`text-xl font-black font-mono ${component.quantity <= component.minStock ? 'text-3s-red' : 'text-3s-black'}`}>
                         {component.quantity}
                       </span>
-                      <>
-                        {component.quantity <= component.minStock && (
-                          <AlertTriangle className="w-4 h-4 text-3s-red" />
-                        )}
-                      </>
                     </div>
                   </div>
-                  
-                  {/* Quick Stock Adjustment */}
-                  <div className="space-y-2 mt-2">
-                    {/* Boutons +/- */}
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => handleStockAdjustment(component.id, -1)}
-                        className="p-1.5 bg-3s-red text-white rounded hover:bg-3s-red-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={component.quantity <= 0 || updatingStocks.has(component.id)}
-                        title="Diminuer le stock de 1"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      
-                      <button
-                        onClick={() => handleStockAdjustment(component.id, 1)}
-                        className="p-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={updatingStocks.has(component.id)}
-                        title="Augmenter le stock de 1"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
+                  <div className="bg-gray-50/80 p-3 rounded-2xl border border-gray-100 group-hover:bg-white transition-colors">
+                    <span className="block text-[8px] font-black text-3s-gray-medium uppercase tracking-widest mb-1">Valeur Totale</span>
+                    <span className="text-sm font-black text-3s-blue font-mono">{formatPrice(totalValue)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-2">
+                  {/* Attributes Grid */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                    <div className="space-y-0.5">
+                      <span className="text-[9px] font-black text-3s-gray-medium uppercase tracking-tight">Référence Fourn.</span>
+                      <p className="text-xs font-bold text-3s-black truncate">{component.productNumber || '—'}</p>
                     </div>
-                    
-                    {/* Saisie manuelle */}
-                    <div className="flex items-center gap-2">
+                    <div className="space-y-0.5 text-right">
+                      <span className="text-[9px] font-black text-3s-gray-medium uppercase tracking-tight">Empreinte (Foot)</span>
+                      <p className="text-xs font-bold text-3s-black truncate">{component.footprint || '—'}</p>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[9px] font-black text-3s-gray-medium uppercase tracking-tight">Fournisseur</span>
+                      <p className="text-xs font-bold text-3s-black truncate">{component.supplier || 'N/A'}</p>
+                    </div>
+                    <div className="space-y-0.5 text-right">
+                      <span className="text-[9px] font-black text-3s-gray-medium uppercase tracking-tight">Seuil Minimum</span>
+                      <p className={`text-xs font-black ${component.quantity <= component.minStock ? 'text-orange-600' : 'text-3s-black'}`}>{component.minStock}</p>
+                    </div>
+                  </div>
+
+                  {/* Quick Actions Footer */}
+                  <div className="pt-6 border-t border-gray-50 mt-4 flex items-center gap-3">
+                    <div className="flex-1 relative flex items-center">
                       <input
                         type="number"
-                        min="0"
+                        min="1"
                         value={stockAdjustments[component.id] || ''}
                         onChange={(e) => handleQuickStockChange(component.id, e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            applyStockAdjustment(component.id);
-                          }
-                        }}
-                        placeholder="Quantité à ajouter"
-                        disabled={updatingStocks.has(component.id)}
-                        className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded text-center font-inter focus:ring-2 focus:ring-3s-blue focus:border-3s-blue disabled:opacity-50 disabled:cursor-not-allowed"
+                        onKeyPress={(e) => { if (e.key === 'Enter') applyStockAdjustment(component.id); }}
+                        placeholder="Qté à ajouter..."
+                        className="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-3s-blue outline-none transition-all"
                       />
-                      
                       <button
                         onClick={() => applyStockAdjustment(component.id)}
-                        className="px-3 py-1 bg-3s-blue text-white text-xs rounded hover:bg-3s-blue-dark transition-colors font-inter disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={stockAdjustments[component.id] === undefined || stockAdjustments[component.id] === 0 || updatingStocks.has(component.id)}
-                        title="Appliquer la nouvelle valeur de stock"
+                        disabled={!stockAdjustments[component.id] || updatingStocks.has(component.id)}
+                        className="absolute right-2 p-2 bg-3s-blue text-white rounded-xl shadow-lg hover:shadow-3s transition-all disabled:opacity-30 active:scale-95"
                       >
-                        {updatingStocks.has(component.id) ? '...' : 'OK'}
+                        {updatingStocks.has(component.id) ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Plus className="w-4 h-4" />}
                       </button>
                     </div>
-                    
-                    {/* Aide contextuelle */}
-                    <div className="text-xs text-gray-500 text-center font-inter">
-                      Saisissez la quantité à ajouter au stock actuel
+                    <div className="flex flex-col gap-1">
+                      <button
+                        disabled={component.quantity <= 0 || updatingStocks.has(component.id)}
+                        onClick={() => handleStockAdjustment(component.id, -1)}
+                        className="p-1.5 bg-gray-50 text-gray-400 hover:text-3s-red hover:bg-red-50 border border-gray-100 rounded-lg transition-all disabled:opacity-20"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        disabled={updatingStocks.has(component.id)}
+                        onClick={() => handleStockAdjustment(component.id, 1)}
+                        className="p-1.5 bg-gray-50 text-gray-400 hover:text-green-600 hover:bg-green-50 border border-gray-100 rounded-lg transition-all"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-sm text-3s-gray-medium font-inter">Stock minimum:</span>
-                  <span className="text-sm font-medium font-inter">{component.minStock}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-sm text-3s-gray-medium font-inter">Prix unitaire:</span>
-                  <span className="text-sm font-medium font-inter">{formatPrice(component.unitPrice)}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-sm text-3s-gray-medium font-inter">Valeur stock:</span>
-                  <span className="text-sm font-medium text-3s-blue font-inter">
-                    {formatPrice(component.quantity * (Number(component.unitPrice) || 0))}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-sm text-3s-gray-medium font-inter">Fournisseur:</span>
-                  <span className="text-sm font-medium font-inter">{component.supplier || 'N/A'}</span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-3s-gray-medium font-inter">Statut:</span>
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium font-inter ${stockStatus.color} ${stockStatus.bg}`}>
-                    {stockStatus.label}
-                  </span>
-                </div>
-                
-                <div className="pt-2 border-t border-gray-100">
-                  <span className="text-xs text-3s-gray-medium capitalize font-inter">
-                    {getCategoryLabel(component.category)}
-                  </span>
                 </div>
               </div>
             </div>
@@ -566,21 +517,21 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
       </div>
 
       {filteredComponents.length === 0 && (
-        <div className="text-center py-12">
-          <div className="p-4 bg-gray-100 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-            <Package className="w-10 h-10 text-gray-400" />
+        <div className="text-center py-24 bg-white/50 rounded-[3rem] border-2 border-dashed border-gray-100">
+          <div className="p-6 bg-gray-50 rounded-full w-24 h-24 mx-auto mb-6 flex items-center justify-center border border-gray-100 shadow-inner">
+            <Package className="w-12 h-12 text-gray-200" />
           </div>
-          <h3 className="text-lg font-medium text-3s-black mb-2 font-inter">Aucun composant trouvé</h3>
-          <p className="text-3s-gray-medium font-inter">Essayez de modifier vos critères de recherche ou d'ajouter des composants.</p>
+          <h3 className="text-xl font-black text-3s-black uppercase tracking-tight mb-2">Aucun composant en vue</h3>
+          <p className="text-sm font-bold text-3s-gray-medium max-w-sm mx-auto opacity-70">Ajustez vos filtres de recherche ou commencez par ajouter de nouveaux éléments au catalogue.</p>
         </div>
       )}
 
       {/* Confirm Delete Dialog */}
       <ConfirmDialog
         isOpen={deleteConfirm.show}
-        title="Supprimer le composant"
-        message={`Êtes-vous sûr de vouloir supprimer "${deleteConfirm.componentName}" ? Cette action est irréversible.`}
-        confirmText="Supprimer"
+        title="Désactivation Critique"
+        message={`Attention : Vous êtes sur le point de supprimer de façon permanente le composant "${deleteConfirm.componentName}". Cette opération impactera l'inventaire global.`}
+        confirmText="Supprimer Définitivement"
         cancelText="Annuler"
         type="danger"
         onConfirm={handleDeleteConfirm}

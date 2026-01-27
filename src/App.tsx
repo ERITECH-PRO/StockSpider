@@ -11,6 +11,7 @@ import Dashboard from './components/Dashboard/Dashboard';
 import ComponentList from './components/Components/ComponentList';
 import ComponentModal from './components/Components/ComponentModal';
 import ProductList from './components/Products/ProductList';
+import ProductInventory from './components/Products/ProductInventory';
 import ProductModal from './components/Products/ProductModal';
 import AssemblyList from './components/Assembly/AssemblyList';
 import ProductsInAssembly from './components/Assembly/ProductsInAssembly';
@@ -45,7 +46,7 @@ const AppContent = () => {
       return false;
     }
   });
-  const [loginForm, setLoginForm] = useState({ email: 'admin@stockspider.com', password: 'admin123' });
+  const [loginForm, setLoginForm] = useState({ email: 'admin@stockspider.com', password: '' });
   const [loginLoading, setLoginLoading] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
@@ -57,6 +58,7 @@ const AppContent = () => {
       components: 'Composants',
       products: 'Produits finis',
       'assembly-in-progress': 'Produits en cours d\'assemblage',
+      'product-inventory': 'Catalogue produits',
       'components-to-buy': 'Composants à acheter',
       assembly: 'Produits assemblés',
       movements: 'Stock & mouvements',
@@ -76,6 +78,7 @@ const AppContent = () => {
       components: 'Rechercher des composants...',
       products: 'Rechercher des produits...',
       'assembly-in-progress': 'Rechercher des produits en cours...',
+      'product-inventory': 'Rechercher dans le catalogue...',
       'components-to-buy': 'Rechercher des composants...',
       assembly: 'Rechercher des produits assemblés...',
       suppliers: 'Rechercher des fournisseurs...',
@@ -98,14 +101,14 @@ const AppContent = () => {
   React.useEffect(() => {
     try {
       localStorage.setItem('currentPage', currentPage);
-    } catch {}
+    } catch { }
   }, [currentPage]);
 
   // Persister l'état du sidebar
   React.useEffect(() => {
     try {
       localStorage.setItem('sidebarCollapsed', sidebarCollapsed ? 'true' : 'false');
-    } catch {}
+    } catch { }
   }, [sidebarCollapsed]);
 
   const renderPageContent = () => {
@@ -116,6 +119,8 @@ const AppContent = () => {
         return <ComponentList searchQuery={searchQuery} />;
       case 'products':
         return <ProductList searchQuery={searchQuery} />;
+      case 'product-inventory':
+        return <ProductInventory />;
       case 'assembly-in-progress':
         return <ProductsInAssembly />;
       case 'components-to-buy':
@@ -178,7 +183,7 @@ const AppContent = () => {
             <p className="text-3s-gray-medium font-inter">Powered by 3S IT</p>
             <p className="text-gray-500 mt-2 font-inter">Connectez-vous pour accéder à votre inventaire</p>
           </div>
-          
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-3s-black mb-2 font-inter">Email</label>
@@ -191,7 +196,7 @@ const AppContent = () => {
                 placeholder="admin@stockspider.com"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-3s-black mb-2 font-inter">Mot de passe</label>
               <input
@@ -203,7 +208,7 @@ const AppContent = () => {
                 placeholder="admin123"
               />
             </div>
-            
+
             <button
               type="submit"
               disabled={loginLoading}
@@ -215,7 +220,7 @@ const AppContent = () => {
               </span>
             </button>
           </form>
-          
+
           <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-blue-700 font-inter font-medium">🔗 Connexion MySQL</p>
             <p className="text-xs text-blue-600 mt-1 font-inter">
@@ -229,14 +234,14 @@ const AppContent = () => {
 
   return (
     <div className="flex h-screen bg-3s-gray-light">
-      <Sidebar 
-        currentPage={currentPage} 
+      <Sidebar
+        currentPage={currentPage}
         onPageChange={setCurrentPage}
         lowStockCount={lowStockCount}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
-      
+
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header
           title={getPageTitle()}
@@ -247,7 +252,7 @@ const AppContent = () => {
           notificationCount={lowStockCount}
           onBellClick={() => setNotificationsOpen(true)}
         />
-        
+
         <main className="flex-1 overflow-y-auto bg-3s-gray-light">
           {renderPageContent()}
         </main>

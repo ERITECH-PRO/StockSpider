@@ -45,6 +45,7 @@ router.get('/', auth, async (req, res) => {
         cl.company_name as clientCompanyName,
         b.chantier_id as chantierId,
         ch.name as chantierName,
+        b.personnel,
         b.created_by as createdBy,
         u.name as createdByName,
         b.created_at as createdAt
@@ -80,6 +81,7 @@ router.get('/:id', auth, async (req, res) => {
         b.chantier_id as chantierId,
         ch.name as chantierName,
         ch.address as chantierAddress,
+        b.personnel,
         b.created_by as createdBy,
         u.name as createdByName,
         b.created_at as createdAt
@@ -123,7 +125,7 @@ router.post('/', auth, async (req, res) => {
   try {
     if (!requireAdmin(req, res)) return;
 
-    const { clientId, chantierId, items } = req.body || {};
+    const { clientId, chantierId, personnel, items } = req.body || {};
     if (!clientId || !chantierId) {
       return res.status(400).json({ error: 'Client et chantier requis' });
     }
@@ -146,9 +148,9 @@ router.post('/', auth, async (req, res) => {
       const bonId = await generateBonId(connection);
 
       await connection.execute(
-        `INSERT INTO bons_sortie (id, client_id, chantier_id, created_by)
-         VALUES (?, ?, ?, ?)`,
-        [bonId, clientId, chantierId, req.user.userId]
+        `INSERT INTO bons_sortie (id, client_id, chantier_id, personnel, created_by)
+         VALUES (?, ?, ?, ?, ?)`,
+        [bonId, clientId, chantierId, personnel || null, req.user.userId]
       );
 
       for (const it of sanitizedItems) {
@@ -256,7 +258,7 @@ router.put('/:id', auth, async (req, res) => {
   try {
     if (!requireAdmin(req, res)) return;
     const { id } = req.params;
-    const { clientId, chantierId, items } = req.body || {};
+    const { clientId, chantierId, personnel, items } = req.body || {};
 
     if (!clientId || !chantierId) {
       return res.status(400).json({ error: 'Client et chantier requis' });
@@ -296,8 +298,8 @@ router.put('/:id', auth, async (req, res) => {
 
       // 3. Mettre à jour l'entête
       await connection.execute(
-        'UPDATE bons_sortie SET client_id = ?, chantier_id = ? WHERE id = ?',
-        [clientId, chantierId, id]
+        'UPDATE bons_sortie SET client_id = ?, chantier_id = ?, personnel = ? WHERE id = ?',
+        [clientId, chantierId, personnel || null, id]
       );
 
       // 4. Appliquer les nouveaux items et décrémenter le stock

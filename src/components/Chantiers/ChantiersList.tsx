@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MapPinned, Plus, Edit, Trash2, Building2, MapPin } from 'lucide-react';
+import { MapPinned, Plus, Edit, Trash2, Building2, MapPin, Search, ShieldCheck, Info } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
 import { apiService } from '../../services/api';
@@ -15,6 +15,8 @@ const ChantiersList = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Chantier | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
   const [form, setForm] = useState<{ clientId?: string | null; name: string; address: string }>({
     clientId: null,
     name: '',
@@ -40,15 +42,26 @@ const ChantiersList = () => {
   }, []);
 
   const clientOptions = useMemo(() => [...clients].sort((a, b) => a.companyName.localeCompare(b.companyName)), [clients]);
-  const chantierList = useMemo(() => [...chantiers].sort((a, b) => a.name.localeCompare(b.name)), [chantiers]);
+
+  const filteredChantiers = useMemo(() => {
+    return chantiers
+      .filter(c =>
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.clientCompanyName?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [chantiers, searchQuery]);
 
   const openCreate = () => {
+    if (!isAdmin) return;
     setEditing(null);
     setForm({ clientId: null, name: '', address: '' });
     setShowModal(true);
   };
 
   const openEdit = (c: Chantier) => {
+    if (!isAdmin) return;
     setEditing(c);
     setForm({ clientId: c.clientId ?? null, name: c.name || '', address: c.address || '' });
     setShowModal(true);
@@ -97,138 +110,206 @@ const ChantiersList = () => {
   if (!isAdmin) {
     return (
       <div className="p-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900">Accès réservé</h2>
-          <p className="text-gray-600 mt-1">Seuls les administrateurs peuvent gérer les chantiers.</p>
+        <div className="card-3s p-10 flex flex-col items-center text-center max-w-2xl mx-auto border-t-4 border-t-3s-red">
+          <ShieldCheck className="w-16 h-16 text-3s-red opacity-20 mb-4" />
+          <h2 className="text-2xl font-black text-3s-black uppercase tracking-tight">Accès réservé</h2>
+          <p className="text-3s-gray-medium mt-2 font-inter">Seuls les administrateurs peuvent gérer le répertoire des chantiers.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-8 bg-3s-gray-light min-h-full font-inter">
+      {/* Header & Stats */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Chantiers</h1>
-          <p className="text-gray-600">Création et gestion des chantiers</p>
+          <h1 className="text-2xl font-bold text-3s-black">Répertoire Chantiers</h1>
+          <p className="text-3s-gray-medium mt-1">Gérez vos sites d'intervention et leurs affectations clients.</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Ajouter
-        </button>
-      </div>
 
-      {loading ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-gray-600">Chargement...</div>
-      ) : chantierList.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-          <MapPinned className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun chantier</h3>
-          <p className="text-gray-500 mb-4">Ajoutez votre premier chantier</p>
-          <button onClick={openCreate} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-            Ajouter un chantier
+        <div className="flex items-center gap-4">
+          <div className="card-3s px-6 py-3 flex flex-col justify-center border-l-4 border-l-purple-500">
+            <span className="text-[10px] text-3s-gray-medium uppercase font-black tracking-widest">Total Chantiers</span>
+            <span className="text-xl font-black text-3s-black">{chantiers.length}</span>
+          </div>
+          <button
+            onClick={openCreate}
+            className="btn-3s-primary px-6 py-3 flex items-center gap-2 shadow-3s !bg-purple-600 hover:!bg-purple-700"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Nouveau Chantier</span>
           </button>
         </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="card-3s p-3 bg-white/80 backdrop-blur-md border border-gray-100">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Rechercher par nom, adresse ou client..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-all shadow-sm"
+          />
+        </div>
+      </div>
+
+      {/* Grid Content */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center p-20 gap-4">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-purple-500 border-t-transparent shadow-sm"></div>
+          <p className="text-3s-gray-medium font-bold animate-pulse text-sm">CHARGEMENT DES CHANTIERS...</p>
+        </div>
+      ) : filteredChantiers.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
+          <MapPinned className="w-16 h-16 text-gray-200 mb-4" />
+          <h3 className="text-lg font-semibold text-3s-black">Aucun site trouvé</h3>
+          <p className="text-3s-gray-medium">Ajustez votre recherche ou créez un nouveau chantier.</p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {chantierList.map((c) => (
-            <div key={c.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <MapPinned className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-lg font-semibold text-gray-900">{c.name}</h3>
-                    <p className="text-xs text-gray-500">{c.id}</p>
-                  </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+          {filteredChantiers.map((c) => (
+            <div key={c.id} className="card-3s group hover:scale-[1.02] transform transition-all cursor-default overflow-hidden flex flex-col">
+              {/* Card Header */}
+              <div className="p-4 flex gap-4 bg-gradient-to-br from-gray-50 to-white border-b border-gray-100">
+                <div className="w-14 h-14 bg-purple-50 rounded-xl flex items-center justify-center border border-purple-100 text-purple-600">
+                  <MapPinned className="w-7 h-7" />
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => openEdit(c)} className="p-1 text-gray-400 hover:text-blue-600">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-3s-black truncate leading-tight group-hover:text-purple-600 transition-colors uppercase tracking-tight">{c.name}</h3>
+                  <p className="text-[10px] text-3s-gray-medium font-mono mt-1">REF: {c.id.substring(0, 8)}...</p>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <button onClick={() => openEdit(c)} className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all" title="Modifier">
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button onClick={() => remove(c)} className="p-1 text-gray-400 hover:text-red-600">
+                  <button onClick={() => remove(c)} className="p-1.5 text-gray-400 hover:text-3s-red hover:bg-red-50 rounded-lg transition-all" title="Supprimer">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-2 text-sm text-gray-600">
-                {c.clientCompanyName && (
-                  <div className="flex items-center">
-                    <Building2 className="w-4 h-4 mr-2" />
-                    <span>{c.clientCompanyName}</span>
+              {/* Site Details */}
+              <div className="p-5 space-y-4 flex-1">
+                <div className="space-y-3">
+                  {c.clientCompanyName ? (
+                    <div className="flex items-center gap-3 text-xs text-3s-black font-bold group/link p-2 -mx-2 rounded-lg bg-green-50/50 border border-green-100/50">
+                      <div className="p-1.5 bg-white shadow-sm border border-green-200 rounded-md">
+                        <Building2 className="w-3.5 h-3.5 text-green-600" />
+                      </div>
+                      <span className="truncate flex-1">{c.clientCompanyName}</span>
+                      <Info className="w-3 h-3 text-green-600/40" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 text-xs text-3s-gray-medium italic p-2 -mx-2">
+                      <div className="p-1.5 bg-gray-50 border border-gray-100 rounded-md opacity-50">
+                        <Building2 className="w-3.5 h-3.5" />
+                      </div>
+                      <span>Aucun client rattaché</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-gray-50">
+                  <div className="flex items-start gap-3">
+                    <div className="p-1.5 bg-purple-50/50 rounded-md shrink-0">
+                      <MapPin className="w-3.5 h-3.5 text-purple-400" />
+                    </div>
+                    <p className="text-[11px] text-3s-gray-medium leading-relaxed italic line-clamp-2">
+                      {c.address || 'Aucune adresse enregistrée'}
+                    </p>
                   </div>
-                )}
-                {c.address && (
-                  <div className="flex items-start">
-                    <MapPin className="w-4 h-4 mr-2 mt-0.5" />
-                    <span>{c.address}</span>
-                  </div>
-                )}
+                </div>
+              </div>
+
+              {/* Footer Meta */}
+              <div className="px-5 py-3 bg-purple-50/20 border-t border-purple-50/50 flex justify-between items-center mt-auto">
+                <span className="text-[9px] font-black text-purple-400/60 uppercase tracking-tighter italic">Opérationnel</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse"></div>
+                  <span className="text-[10px] font-bold text-3s-black uppercase">Actif</span>
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
 
+      {/* Modernized Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">
-                {editing ? 'Modifier le chantier' : 'Ajouter un chantier'}
-              </h2>
-              <button onClick={close} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-                ×
+        <div className="fixed inset-0 bg-3s-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100 transform animate-scale-in">
+            <div className="bg-gradient-to-r from-purple-600 to-purple-700 p-6 flex items-center justify-between text-white">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-white/20 rounded-xl">
+                  {editing ? <Edit className="w-6 h-6" /> : <MapPinned className="w-6 h-6" />}
+                </div>
+                <div>
+                  <h2 className="text-xl font-black uppercase tracking-tight">
+                    {editing ? 'Modifier Site' : 'Nouveau Chantier'}
+                  </h2>
+                  <p className="text-white/60 text-xs font-bold">Fichier Opérations StockSpider</p>
+                </div>
+              </div>
+              <button onClick={close} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                <Plus className="w-6 h-6 rotate-45" />
               </button>
             </div>
 
-            <form onSubmit={submit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Client (optionnel)</label>
-                <select
-                  value={form.clientId ?? ''}
-                  onChange={(e) => setForm((p) => ({ ...p, clientId: e.target.value || null }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">— Aucun —</option>
-                  {clientOptions.map((cl) => (
-                    <option key={cl.id} value={cl.id}>
-                      {cl.companyName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nom du chantier *</label>
-                <input
-                  type="text"
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Adresse</label>
-                <textarea
-                  value={form.address}
-                  onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+            <form onSubmit={submit} className="p-8 space-y-6">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-xs font-black text-3s-gray-medium uppercase tracking-widest mb-2">Affectation Client (optionnel)</label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <select
+                      value={form.clientId ?? ''}
+                      onChange={(e) => setForm({ ...form, clientId: e.target.value || null })}
+                      className="w-full pl-9 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none transition-all shadow-sm text-sm font-bold"
+                    >
+                      <option value="">— Aucun client sélectionné —</option>
+                      {clientOptions.map((cl) => (
+                        <option key={cl.id} value={cl.id}>
+                          {cl.companyName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-3s-gray-medium uppercase tracking-widest mb-2">Nom du Chantier *</label>
+                  <input
+                    type="text"
+                    required
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none transition-all shadow-sm font-bold"
+                    placeholder="Ex: Chantier Central Park, Extension Usine..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-3s-gray-medium uppercase tracking-widest mb-2">Localisation / Adresse</label>
+                  <textarea
+                    value={form.address}
+                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                    rows={3}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none transition-all shadow-sm resize-none"
+                    placeholder="Adresse précise du site"
+                  />
+                </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4">
-                <button type="button" onClick={close} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-50">
+                <button type="button" onClick={close} className="btn-3s-secondary px-8 shadow-sm">
                   Annuler
                 </button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  {editing ? 'Mettre à jour' : 'Ajouter'}
+                <button type="submit" className="btn-3s-primary px-8 shadow-3s !bg-purple-600 hover:!bg-purple-700">
+                  {editing ? 'Mettre à jour' : 'Enregistrer le chantier'}
                 </button>
               </div>
             </form>

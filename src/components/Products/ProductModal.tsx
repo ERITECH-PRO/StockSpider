@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, Box, Plus, Trash2, Upload } from 'lucide-react';
+import { X, Box, Plus, Trash2, Upload, Image as ImageIcon } from 'lucide-react';
 import { Product, ProductComponent } from '../../types';
 import { useData } from '../../hooks/useData';
 import BOMImport from './BOMImport';
 import { BOMItem } from '../../utils/bomParser';
 import { useToast } from '../../hooks/useToast';
 import { formatPrice } from '../../utils/priceFormatter';
+import { apiService } from '../../services/api';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -18,6 +19,9 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
   const { showSuccess, showInfo, showError } = useToast();
   const isEdit = !!product;
   const [showBOMImport, setShowBOMImport] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     name: product?.name || '',
@@ -25,12 +29,13 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
     components: product?.components || [] as ProductComponent[],
     productionCost: Number(product?.productionCost) || 0,
     productNumber: product?.productNumber || '',
+    imageUrl: product?.imageUrl || '',
   });
 
   // Mettre à jour le formulaire quand le produit change
   useEffect(() => {
     console.log('🔧 ProductModal - Product reçu:', product);
-    
+
     if (product) {
       console.log('🔧 ProductModal - Pré-remplissage du formulaire avec:', {
         name: product.name,
@@ -39,37 +44,43 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
         productionCost: product.productionCost,
         productNumber: product.productNumber
       });
-      
+
       setFormData({
         name: product.name || '',
         description: product.description || '',
         components: product.components || [],
         productionCost: Number(product.productionCost) || 0,
         productNumber: product.productNumber || '',
+        imageUrl: product.imageUrl || '',
       });
+      setImagePreview(product.imageUrl || null);
+      setSelectedImage(null);
     } else {
       console.log('🔧 ProductModal - Réinitialisation du formulaire pour nouveau produit');
-      // Réinitialiser le formulaire pour un nouveau produit
+      // Réinitialiser le formulaire pour un nouveau composant
       setFormData({
         name: '',
         description: '',
         components: [],
         productionCost: 0,
         productNumber: '',
+        imageUrl: '',
       });
+      setImagePreview(null);
+      setSelectedImage(null);
     }
   }, [product]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validation côté client
     if (!formData.name || !formData.name.trim()) {
       showError('Erreur', 'Le nom du produit est requis');
       return;
     }
-    
-    
+
+
     // S'assurer que les valeurs numériques sont bien définies
     const dataToSend = {
       ...formData,
@@ -77,19 +88,33 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
       quantity: 0, // Quantité fixée à 0 car non utilisée
       sellingPrice: 0, // Prix de vente fixé à 0 car non utilisé
     };
-    
+
     // Debug: afficher les données envoyées
     console.log('Données du formulaire:', dataToSend);
-    
+
     try {
       if (isEdit && product) {
-        await updateProduct(product.id, dataToSend);
+        let imageUrl = formData.imageUrl;
+        if (selectedImage) {
+          const uploadRes = await apiService.uploadProductImage(product.id, selectedImage);
+          imageUrl = uploadRes.imageUrl;
+        }
+        await updateProduct(product.id, { ...dataToSend, imageUrl });
         showSuccess('Produit mis à jour', `${dataToSend.name} a été modifié avec succès`);
       } else {
-        await addProduct(dataToSend);
+        const newProduct = await addProduct(dataToSend);
+        if (selectedImage && newProduct) {
+          try {
+            const uploadRes = await apiService.uploadProductImage(newProduct.id, selectedImage);
+            await updateProduct(newProduct.id, { ...dataToSend, imageUrl: uploadRes.imageUrl });
+          } catch (uploadError) {
+            console.error('Erreur upload image:', uploadError);
+            showError('Attention', 'Produit créé mais image non uploadée');
+          }
+        }
         showSuccess('Produit créé', `${dataToSend.name} a été créé avec succès`);
       }
-      
+
       onClose();
     } catch (error) {
       console.error('Erreur lors de la soumission:', error);
@@ -110,8 +135,8 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
 
     for (const bomItem of bomItems) {
       // Vérifier si le composant existe déjà (recherche plus intelligente)
-      let existingComponent = components.find(c => 
-        c.productNumber === bomItem.productNumber || 
+      let existingComponent = components.find(c =>
+        c.productNumber === bomItem.productNumber ||
         c.designation === bomItem.designation ||
         (c.name === bomItem.name && c.footprint === bomItem.footprint)
       );
@@ -129,18 +154,18 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
           category: bomItem.category,
           minStock: Math.ceil(bomItem.quantity * 0.2), // 20% de la quantité requise comme stock minimum
         };
-        
+
         try {
           // console.log('🔧 Création composant:', bomItem.designation);
           const createdComponent = await addComponent(newComponent);
           createdComponentIds.push(createdComponent.id);
           newComponentsCount++;
-          
+
           productComponents.push({
             componentId: createdComponent.id,
             quantity: bomItem.quantity
           });
-          
+
           // console.log('✅ Composant créé:', createdComponent.id);
         } catch (error) {
           console.error('Erreur création composant:', error);
@@ -212,6 +237,26 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        showError('Erreur', 'Veuillez sélectionner une image');
+        return;
+      }
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onload = (e) => setImagePreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    setFormData(prev => ({ ...prev, imageUrl: '' }));
+  };
+
   const handleAddProductComponent = () => {
     const newComponent: ProductComponent = {
       componentId: '',
@@ -226,7 +271,7 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
   const updateComponent = (index: number, field: keyof ProductComponent, value: any) => {
     setFormData(prev => ({
       ...prev,
-      components: prev.components.map((comp, i) => 
+      components: prev.components.map((comp, i) =>
         i === index ? { ...comp, [field]: value } : comp
       )
     }));
@@ -337,6 +382,49 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Description du produit..."
             />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Image du produit
+              </label>
+              <div className="flex items-start gap-4">
+                <div className="w-32 h-32 border border-gray-200 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden relative group">
+                  {imagePreview ? (
+                    <>
+                      <img src={imagePreview} alt="Aperçu" className="w-full h-full object-contain" />
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <ImageIcon className="w-10 h-10 text-gray-300" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="btn-3s-secondary text-sm"
+                  >
+                    Sélectionner une image
+                  </button>
+                  <p className="text-xs text-gray-500 mt-2">PNG, JPG - 5MB max.</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Components */}

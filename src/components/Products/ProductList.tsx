@@ -1,5 +1,5 @@
- 
-import { Edit2, Box, Wrench, Trash2, Download, Upload } from 'lucide-react';
+
+import { Edit2, Box, Wrench, Trash2, Download, Upload, AlertTriangle, Database, Plus, Minus } from 'lucide-react';
 import { Product } from '../../types';
 import { useData } from '../../hooks/useData';
 import { useToast } from '../../hooks/useToast';
@@ -16,7 +16,7 @@ interface ProductListProps {
 const ProductList = ({ searchQuery }: ProductListProps) => {
   const { products, components, deleteProduct, addProductToAssembly, addProduct, updateProduct } = useData();
   const { showSuccess, showError, showInfo } = useToast();
-  
+
   const [productModal, setProductModal] = useState<{ show: boolean; product: Product | null }>({
     show: false,
     product: null
@@ -41,7 +41,7 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
         }
       }
     });
-    
+
     // Retourner le prochain ID disponible
     return `PR${maxNumber + 1}`;
   };
@@ -91,22 +91,22 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
 
   const handleAssemble = async (product: Product) => {
     const quantity = assemblyQuantities[product.id] || 1;
-    
+
     try {
       // Utiliser la nouvelle logique : ajouter à l'assemblage même si des composants manquent
       await addProductToAssembly(product.id, quantity);
-      
+
       // Vérifier si tous les composants sont disponibles pour un assemblage immédiat
       const canAssembleNow = canAssemble(product);
-      
+
       if (canAssembleNow) {
         showInfo(
-          'Produit ajouté à l\'assemblage', 
+          'Produit ajouté à l\'assemblage',
           `${product.name} peut être assemblé immédiatement. Consultez la page "Produits en cours d'assemblage".`
         );
       } else {
         showInfo(
-          'Produit ajouté à l\'assemblage', 
+          'Produit ajouté à l\'assemblage',
           `${product.name} ajouté avec des composants manquants. Consultez la page "Composants à acheter".`
         );
       }
@@ -148,11 +148,11 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
   const exportToExcel = () => {
     // Trouver le nombre maximum de composants pour dimensionner les colonnes
     const maxComponents = Math.max(...filteredProducts.map(p => p.components.length), 1);
-    
+
     const exportData = filteredProducts.map(product => {
       const unitPurchasePrice = calculateUnitPurchasePrice(product);
       const totalPurchasePrice = calculateTotalPurchasePrice(product);
-      
+
       // Créer l'objet de base
       const baseData: any = {
         'Nom du produit': product.name,
@@ -187,7 +187,7 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Produits finis');
-    
+
     // Ajuster la largeur des colonnes
     const colWidths = [
       { wch: 25 }, // Nom du produit
@@ -249,16 +249,16 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
             // Parser les composants depuis les colonnes
             const productComponents: any[] = [];
             let componentIndex = 1;
-            
+
             while (true) {
               const componentName = row[`Composant ${componentIndex} - Nom`];
               const componentQuantity = row[`Composant ${componentIndex} - Quantité`];
               const componentId = row[`Composant ${componentIndex} - ID`];
-              
+
               if (!componentName && !componentId) {
                 break; // Plus de composants
               }
-              
+
               if (componentName && componentQuantity) {
                 // Chercher le composant par ID ou par nom
                 let foundComponent = null;
@@ -266,12 +266,12 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
                   foundComponent = components.find(c => c.id === componentId);
                 }
                 if (!foundComponent && componentName) {
-                  foundComponent = components.find(c => 
+                  foundComponent = components.find(c =>
                     c.designation.toLowerCase() === componentName.toLowerCase() ||
                     c.name.toLowerCase() === componentName.toLowerCase()
                   );
                 }
-                
+
                 if (foundComponent) {
                   productComponents.push({
                     componentId: foundComponent.id,
@@ -281,10 +281,10 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
                   console.warn(`Composant non trouvé: ${componentName} (ligne ${index + 2})`);
                 }
               }
-              
+
               componentIndex++;
             }
-            
+
             productData.components = productComponents;
 
             // Vérifier si le produit existe déjà
@@ -351,171 +351,218 @@ const ProductList = ({ searchQuery }: ProductListProps) => {
   };
 
   return (
-    <div className="space-y-6 p-6 bg-3s-gray-light min-h-full">
-      {/* Boutons d'export/import */}
-      <div className="card-3s p-4 animate-fade-in">
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={exportToExcel}
-            className="btn-3s-primary px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            <span className="font-inter">Exporter Excel</span>
-          </button>
-          
-          <label className="btn-3s-secondary px-4 py-2 rounded-lg flex items-center gap-2 transition-colors cursor-pointer">
-            <Upload className="w-4 h-4" />
-            <span className="font-inter">Importer Excel</span>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleFileImport}
-              className="hidden"
-            />
-          </label>
+    <div className="space-y-8 p-6 bg-3s-gray-light min-h-full font-inter">
+      {/* Premium Header & Utility Actions */}
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+        <div className="flex-1 space-y-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-3s-blue/10 rounded-2xl shadow-inner border border-3s-blue/5">
+              <Box className="w-6 h-6 text-3s-blue" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-3s-black uppercase tracking-tight leading-none">Gestion de l'Assemblage</h1>
+              <p className="text-[10px] text-3s-gray-medium font-bold uppercase tracking-widest mt-2 opacity-70">Configuration & Planification de Production 3S IT</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-4 items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100/50">
+            <div className="flex-1 min-w-[200px]">
+              <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-xl border border-gray-100">
+                <span className="text-[10px] font-black text-3s-gray-medium uppercase tracking-widest">État du Catalogue:</span>
+                <span className="text-sm font-black text-3s-blue">{filteredProducts.length} Modèles Enregistrés</span>
+              </div>
+            </div>
+
+            <div className="h-8 w-px bg-gray-100 mx-2 hidden md:block"></div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={exportToExcel}
+                className="p-2.5 bg-3s-blue/5 text-3s-blue rounded-xl hover:bg-3s-blue hover:text-white transition-all border border-3s-blue/10 active:scale-95 flex items-center gap-2"
+                title="Exporter Master Catalogue"
+              >
+                <Download className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest px-1">Exporter</span>
+              </button>
+
+              <label className="p-2.5 bg-green-50 text-green-600 rounded-xl hover:bg-green-600 hover:text-white transition-all border border-green-100 cursor-pointer active:scale-95 flex items-center gap-2" title="Importer Configuration">
+                <Upload className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest px-1">Importer</span>
+                <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileImport} className="hidden" />
+              </label>
+            </div>
+          </div>
         </div>
       </div>
 
-      {filteredProducts.map((product) => {
-        const unitPurchasePrice = calculateUnitPurchasePrice(product);
-        const totalPurchasePrice = calculateTotalPurchasePrice(product);
-        // Le bouton est toujours activé selon le nouveau workflow
-        const assemblyQuantity = assemblyQuantities[product.id] || 1;
+      {/* Assembly Workbench Grid */}
+      <div className="grid grid-cols-1 gap-10 pb-20">
+        {filteredProducts.map((product) => {
+          const unitPurchasePrice = calculateUnitPurchasePrice(product);
+          const totalPurchasePrice = calculateTotalPurchasePrice(product);
+          const assemblyQuantity = assemblyQuantities[product.id] || 1;
+          const isStockIssue = !canAssemble(product);
 
-        return (
-          <div key={product.id} className="card-3s p-6 animate-fade-in hover:shadow-card-hover transition-all duration-200">
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-green-100 rounded-lg shadow-3s">
-                  <Box className="w-6 h-6 text-green-600" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-3s-black font-inter">{product.name}</h3>
-                  <p className="text-3s-gray-medium mt-1 font-inter">{product.description}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => handleEditProduct(product)}
-                  className="p-2 text-gray-400 hover:text-3s-blue hover:bg-blue-50 rounded-lg transition-all duration-200"
-                  title="Modifier le produit"
-                >
-                  <Edit2 className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => handleDeleteClick(product)}
-                  className="p-2 text-gray-400 hover:text-3s-red hover:bg-red-50 rounded-lg transition-all duration-200"
-                  title="Supprimer le produit"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => handleAssemble(product)}
-                  className="btn-3s-primary px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                >
-                  <Wrench className="w-4 h-4" />
-                  <span className="font-inter">Assembler</span>
-                </button>
-              </div>
-            </div>
+          return (
+            <div key={product.id} className="group relative bg-white rounded-[2.5rem] shadow-sm hover:shadow-2xl transition-all duration-500 border border-gray-100 overflow-hidden">
+              {/* Card Background Branding */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-3s-blue opacity-[0.02] rounded-full -mr-32 -mt-32 group-hover:scale-110 transition-transform duration-700"></div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <p className="text-sm text-blue-600 font-medium font-inter">Quantité à assembler</p>
-                <input
-                  type="number"
-                  min="1"
-                  value={assemblyQuantity}
-                  onChange={(e) => handleQuantityChange(product.id, parseInt(e.target.value) || 1)}
-                  className="text-2xl font-bold text-blue-700 mt-1 font-inter bg-transparent border-none outline-none w-full"
-                />
-              </div>
-              
-              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                <p className="text-sm text-green-600 font-medium font-inter">Prix d'achat</p>
-                <p className="text-2xl font-bold text-green-700 mt-1 font-inter">{formatPrice(unitPurchasePrice)}</p>
-              </div>
-              
-              <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                <p className="text-sm text-orange-600 font-medium font-inter">Prix d'achat total</p>
-                <p className="text-2xl font-bold text-orange-700 mt-1 font-inter">{formatPrice(totalPurchasePrice)}</p>
-              </div>
-            </div>
+              <div className="relative p-8">
+                <div className="flex flex-col xl:flex-row gap-10">
 
-            <div className="border-t border-gray-200 pt-4">
-              <h4 className="font-medium text-3s-black mb-4 font-inter">Composants requis</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {product.components.map((pc, index) => {
-                  const component = components.find(c => c.id === pc.componentId);
-                  const requiredQuantity = (Number(pc.quantity) || 0) * assemblyQuantity;
-                  const hasStock = component && component.quantity >= requiredQuantity;
-                  
-                  return (
-                    <div key={pc.componentId || index} className={`p-4 rounded-lg border transition-all duration-200 hover:shadow-card-hover ${
-                      hasStock ? 'border-green-200 bg-green-50' : 'border-3s-red bg-red-50'
-                    }`}>
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="font-medium text-3s-black font-inter">{getComponentName(pc.componentId)}</p>
-                          <p className="text-sm text-3s-gray-medium font-inter">
-                            Quantité requise: {pc.quantity} × {assemblyQuantity} = {requiredQuantity}
-                          </p>
+                  {/* Column 1: Identity & Stats */}
+                  <div className="xl:w-1/3 space-y-8">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-black text-3s-blue bg-3s-blue/5 border border-3s-blue/10 px-2 py-1 rounded-lg uppercase tracking-widest">{product.id}</span>
+                        <div className={`w-2 h-2 rounded-full ${isStockIssue ? 'bg-orange-500 animate-pulse' : 'bg-green-500'}`}></div>
+                      </div>
+                      <h3 className="text-2xl font-black text-3s-black uppercase tracking-tighter leading-tight group-hover:text-3s-blue transition-colors">{product.name}</h3>
+                      <p className="text-sm font-bold text-3s-gray-medium leading-relaxed opacity-80">{product.description}</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                      {/* Workbench Control: Quantity */}
+                      <div className="bg-gray-50/80 p-5 rounded-[1.8rem] border border-gray-100 group-hover:bg-white transition-all shadow-inner">
+                        <span className="block text-[10px] font-black text-3s-gray-medium uppercase tracking-widest mb-3">Unités à Assembler</span>
+                        <div className="flex items-center justify-between gap-4">
+                          <button
+                            onClick={() => handleQuantityChange(product.id, assemblyQuantity - 1)}
+                            className="p-2.5 bg-white text-3s-black rounded-xl border border-gray-200 hover:border-3s-blue hover:text-3s-blue shadow-sm transition-all active:scale-95"
+                          >
+                            <Minus className="w-5 h-5" />
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            value={assemblyQuantity}
+                            onChange={(e) => handleQuantityChange(product.id, parseInt(e.target.value) || 1)}
+                            className="w-full text-3xl font-black text-center text-3s-black bg-transparent outline-none font-mono"
+                          />
+                          <button
+                            onClick={() => handleQuantityChange(product.id, assemblyQuantity + 1)}
+                            className="p-2.5 bg-white text-3s-black rounded-xl border border-gray-200 hover:border-3s-blue hover:text-3s-blue shadow-sm transition-all active:scale-95"
+                          >
+                            <Plus className="w-5 h-5" />
+                          </button>
                         </div>
-                        <div className="text-right">
-                          <p className={`text-sm font-medium font-inter ${hasStock ? 'text-green-600' : 'text-3s-red'}`}>
-                            {component ? `${component.quantity} dispo` : 'N/A'}
-                          </p>
-                          <p className="text-xs text-gray-500 font-inter">
-                            {component ? formatPrice((Number(component.unitPrice) || 0) * requiredQuantity) : '-'}
-                          </p>
+                      </div>
+
+                      {/* Financial Metrics */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-3s-blue/5 rounded-2xl border border-3s-blue/10">
+                          <span className="block text-[8px] font-black text-3s-blue uppercase tracking-widest mb-1.5 opacity-60">P.A. Unitaire</span>
+                          <span className="text-lg font-black text-3s-black font-mono">{formatPrice(unitPurchasePrice)}</span>
+                        </div>
+                        <div className="p-4 bg-3s-black rounded-2xl shadow-lg shadow-black/10">
+                          <span className="block text-[8px] font-black text-white/40 uppercase tracking-widest mb-1.5">Engagement Total</span>
+                          <span className="text-lg font-black text-white font-mono">{formatPrice(totalPurchasePrice)}</span>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
 
-            {!canAssemble(product) && (
-              <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                <p className="text-orange-600 font-medium font-inter">ℹ️ Composants manquants détectés</p>
-                <p className="text-orange-600 text-sm mt-1 font-inter">
-                  Certains composants ne sont pas disponibles en quantité suffisante pour assembler {assemblyQuantity} unité{assemblyQuantity > 1 ? 's' : ''}.
-                  <br />
-                  <strong>Le produit sera ajouté à l'assemblage et les composants manquants à la liste d'achat.</strong>
-                </p>
-                <div className="mt-2 text-xs text-orange-500 font-inter">
-                  Composants manquants : {product.components
-                    .filter(pc => {
-                      const component = components.find(c => c.id === pc.componentId);
-                      if (!component) return false;
-                      const requiredQuantity = (Number(pc.quantity) || 0) * assemblyQuantity;
-                      return component.quantity < requiredQuantity;
-                    })
-                    .map(pc => {
-                      const component = components.find(c => c.id === pc.componentId);
-                      if (!component) return null;
-                      const requiredQuantity = (Number(pc.quantity) || 0) * assemblyQuantity;
-                      return `${component.designation}: ${requiredQuantity} requis, ${component.quantity} disponible`;
-                    })
-                    .filter(Boolean)
-                    .join(' • ')}
+                    <div className="flex flex-col gap-3 pt-4">
+                      <button
+                        onClick={() => handleAssemble(product)}
+                        className={`w-full py-4 text-sm font-black uppercase tracking-[0.2em] rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-3 ${isStockIssue
+                          ? 'bg-orange-500 text-white shadow-orange-200 hover:bg-orange-600'
+                          : 'bg-3s-blue text-white shadow-3s-blue/30 hover:bg-3s-blue-dark'
+                          }`}
+                      >
+                        <Wrench className="w-4 h-4" />
+                        Lancer la Production
+                      </button>
+                      <div className="flex items-center gap-2 px-1">
+                        <button onClick={() => handleEditProduct(product)} className="flex-1 py-2 text-[10px] font-black uppercase tracking-widest text-3s-gray-medium hover:text-3s-blue transition-colors flex items-center justify-center gap-2"><Edit2 className="w-3.5 h-3.5" /> Modifier</button>
+                        <div className="w-px h-4 bg-gray-100"></div>
+                        <button onClick={() => handleDeleteClick(product)} className="flex-1 py-2 text-[10px] font-black uppercase tracking-widest text-3s-gray-medium hover:text-3s-red transition-colors flex items-center justify-center gap-2"><Trash2 className="w-3.5 h-3.5" /> Supprimer</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Column 2: Requisitions / Component List */}
+                  <div className="xl:w-2/3">
+                    <div className="bg-gray-50/50 rounded-[2rem] p-8 border border-gray-100 h-full">
+                      <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-100">
+                            <Database className="w-4 h-4 text-3s-gray-medium" />
+                          </div>
+                          <h4 className="text-sm font-black text-3s-black uppercase tracking-[0.1em]">Revue des Composants requis</h4>
+                        </div>
+                        <span className="text-[10px] font-black text-3s-gray-medium uppercase opacity-50 tracking-widest">{product.components.length} RÉFÉRENCES</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {product.components.map((pc, index) => {
+                          const component = components.find(c => c.id === pc.componentId);
+                          const requiredTotal = (Number(pc.quantity) || 0) * assemblyQuantity;
+                          const available = component ? component.quantity : 0;
+                          const isMissing = available < requiredTotal;
+
+                          return (
+                            <div key={pc.componentId || index} className={`relative p-5 rounded-2xl border transition-all duration-300 group/item ${isMissing
+                              ? 'bg-red-50/40 border-red-100/50'
+                              : 'bg-white border-gray-100 hover:border-3s-blue/30'
+                              }`}>
+                              <div className="flex justify-between items-start">
+                                <div className="min-w-0 flex-1">
+                                  <h5 className="text-xs font-black text-3s-black uppercase tracking-tight truncate group-hover/item:text-3s-blue transition-colors">{getComponentName(pc.componentId)}</h5>
+                                  <div className="mt-2 flex items-baseline gap-2">
+                                    <span className="text-[10px] font-black text-3s-gray-medium uppercase opacity-60">Besoin:</span>
+                                    <span className="text-sm font-black text-3s-black font-mono">{pc.quantity} <span className="text-[10px] opacity-40">×{assemblyQuantity}</span> = {requiredTotal}</span>
+                                  </div>
+                                </div>
+                                <div className="text-right pl-4">
+                                  <div className={`px-2 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest ${isMissing
+                                    ? 'bg-red-500 text-white border-red-400/50 animate-pulse'
+                                    : 'bg-green-50 text-green-600 border-green-100'
+                                    }`}>
+                                    {isMissing ? 'Manquant' : 'Disponible'}
+                                  </div>
+                                  <p className={`mt-2 text-[10px] font-bold ${isMissing ? 'text-red-500' : 'text-3s-gray-medium'}`}>
+                                    {component ? `${available} en stock` : 'Indisponible'}
+                                  </p>
+                                </div>
+                              </div>
+                              {isMissing && (
+                                <div className="absolute inset-x-0 bottom-0 h-0.5 bg-red-400 opacity-20 transform scale-x-0 group-hover/item:scale-x-100 transition-transform"></div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {isStockIssue && (
+                        <div className="mt-8 p-6 bg-orange-50 border border-orange-100 rounded-[1.8rem] flex items-start gap-4 shadow-sm border-dashed">
+                          <div className="p-2 bg-white rounded-xl shadow-sm border border-orange-200 shrink-0">
+                            <AlertTriangle className="w-5 h-5 text-orange-500" />
+                          </div>
+                          <div>
+                            <h5 className="text-xs font-black text-orange-600 uppercase tracking-widest mb-1">Attention: Flux Stock Discontinu</h5>
+                            <p className="text-[11px] font-bold text-orange-600/80 leading-relaxed italic uppercase tracking-tighter">
+                              L'assemblage de {assemblyQuantity} unité{assemblyQuantity > 1 ? 's' : ''} présente des ruptures. Le système générera automatiquement des commandes d'approvisionnement dans le module "Composants à acheter".
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
-        );
-      })}
+            </div>
+          );
+        })}
+      </div>
 
       {filteredProducts.length === 0 && (
-        <div className="text-center py-12">
-          <div className="p-4 bg-gray-100 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-            <Box className="w-10 h-10 text-gray-400" />
+        <div className="flex flex-col items-center justify-center py-32 bg-white/50 rounded-[4rem] border-2 border-dashed border-gray-100">
+          <div className="p-8 bg-white rounded-full shadow-lg mb-8 border border-gray-50">
+            <Box className="w-20 h-20 text-gray-200" />
           </div>
-          <h3 className="text-lg font-medium text-3s-black mb-2 font-inter">Aucun produit trouvé</h3>
-          <p className="text-3s-gray-medium font-inter">Essayez de modifier votre recherche ou d'ajouter des produits.</p>
+          <h3 className="text-2xl font-black text-3s-black uppercase tracking-tight">Poste de Travail Inoccupé</h3>
+          <p className="text-sm font-bold text-3s-gray-medium max-w-sm text-center mt-3 leading-relaxed opacity-60">Aucun modèle de produit ne correspond à votre recherche actuelle. Veuillez vérifier le catalogue global ou créer un nouveau modèle.</p>
         </div>
       )}
 

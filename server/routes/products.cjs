@@ -17,6 +17,7 @@ router.get('/', auth, async (req, res) => {
         production_cost as productionCost,
         selling_price as sellingPrice,
         quantity,
+        image_url as imageUrl,
         created_at as createdAt,
         updated_at as updatedAt
       FROM products 
@@ -35,10 +36,10 @@ router.get('/', auth, async (req, res) => {
         JOIN components c ON pc.component_id = c.id
         WHERE pc.product_id = ?
       `, [product.id]);
-      
+
       product.components = components;
     }
-    
+
     res.json(products);
   } catch (error) {
     console.error('Erreur récupération produits:', error);
@@ -56,7 +57,8 @@ router.post('/', auth, async (req, res) => {
       components = [],
       productionCost = 0,
       sellingPrice = 0,
-      quantity = 0
+      quantity = 0,
+      imageUrl = ''
     } = req.body;
 
     if (!name || sellingPrice === undefined || sellingPrice === null) {
@@ -77,9 +79,9 @@ router.post('/', auth, async (req, res) => {
     await db.transaction(async (connection) => {
       // Créer le produit
       await connection.execute(`
-        INSERT INTO products (id, name, description, product_number, production_cost, selling_price, quantity)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, [productId, name, description, productNumber || '', productionCost, sellingPrice, quantity]);
+        INSERT INTO products (id, name, description, product_number, production_cost, selling_price, quantity, image_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, [productId, name, description, productNumber || '', productionCost, sellingPrice, quantity, imageUrl]);
 
       // Ajouter les composants (grouper par component_id pour éviter les doublons)
       if (components.length > 0) {
@@ -89,7 +91,7 @@ router.post('/', auth, async (req, res) => {
           if (!component.componentId || !component.quantity) {
             continue;
           }
-          
+
           const existing = componentMap.get(component.componentId);
           if (existing) {
             existing.quantity += component.quantity;
@@ -100,7 +102,7 @@ router.post('/', auth, async (req, res) => {
             });
           }
         }
-        
+
         // Insérer les composants groupés
         for (const [componentId, data] of componentMap) {
           const pcId = randomUUID();
@@ -149,7 +151,7 @@ router.post('/', auth, async (req, res) => {
 router.put('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const {
       name,
       description,
@@ -157,12 +159,13 @@ router.put('/:id', auth, async (req, res) => {
       components,
       productionCost,
       sellingPrice,
-      quantity
+      quantity,
+      imageUrl
     } = req.body;
 
     // Charger l'état actuel du produit pour supporter les mises à jour partielles
     const existingRows = await db.query(
-      'SELECT name, description, product_number, production_cost, selling_price, quantity FROM products WHERE id = ?',
+      'SELECT name, description, product_number, production_cost, selling_price, quantity, image_url FROM products WHERE id = ?',
       [id]
     );
     if (!existingRows || existingRows.length === 0) {
@@ -178,6 +181,7 @@ router.put('/:id', auth, async (req, res) => {
       productionCost: productionCost ?? existing.production_cost ?? 0,
       sellingPrice: sellingPrice ?? existing.selling_price,
       quantity: quantity ?? existing.quantity ?? 0,
+      imageUrl: imageUrl ?? existing.image_url ?? '',
     };
 
     if (!merged.name || merged.sellingPrice === undefined || merged.sellingPrice === null) {
@@ -188,9 +192,9 @@ router.put('/:id', auth, async (req, res) => {
       // Mettre à jour le produit (avec valeurs fusionnées)
       await connection.execute(`
         UPDATE products 
-        SET name = ?, description = ?, product_number = ?, production_cost = ?, selling_price = ?, quantity = ?, updated_at = CURRENT_TIMESTAMP
+        SET name = ?, description = ?, product_number = ?, production_cost = ?, selling_price = ?, quantity = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [merged.name, merged.description, merged.productNumber, merged.productionCost, merged.sellingPrice, merged.quantity, id]);
+      `, [merged.name, merged.description, merged.productNumber, merged.productionCost, merged.sellingPrice, merged.quantity, merged.imageUrl, id]);
 
       // Si une liste de composants est fournie, alors remplacer; sinon ne pas toucher
       if (Array.isArray(components)) {
@@ -199,32 +203,32 @@ router.put('/:id', auth, async (req, res) => {
 
         // Ajouter les nouveaux composants
         if (components.length > 0) {
-        // Grouper les composants par component_id et additionner les quantités
-        const componentMap = new Map();
-        for (const component of components) {
-          if (!component.componentId || !component.quantity) {
-            continue;
+          // Grouper les composants par component_id et additionner les quantités
+          const componentMap = new Map();
+          for (const component of components) {
+            if (!component.componentId || !component.quantity) {
+              continue;
+            }
+
+            const existing = componentMap.get(component.componentId);
+            if (existing) {
+              existing.quantity += component.quantity;
+            } else {
+              componentMap.set(component.componentId, {
+                componentId: component.componentId,
+                quantity: component.quantity
+              });
+            }
           }
-          
-          const existing = componentMap.get(component.componentId);
-          if (existing) {
-            existing.quantity += component.quantity;
-          } else {
-            componentMap.set(component.componentId, {
-              componentId: component.componentId,
-              quantity: component.quantity
-            });
-          }
-        }
-        
-        // Insérer les composants groupés
-        for (const [componentId, data] of componentMap) {
-          const pcId = randomUUID();
-          await connection.execute(`
+
+          // Insérer les composants groupés
+          for (const [componentId, data] of componentMap) {
+            const pcId = randomUUID();
+            await connection.execute(`
             INSERT INTO product_components (id, product_id, component_id, quantity)
             VALUES (?, ?, ?, ?)
           `, [pcId, id, componentId, data.quantity]);
-        }
+          }
         }
       }
     });
@@ -329,10 +333,10 @@ router.delete('/:id', auth, async (req, res) => {
     await db.transaction(async (connection) => {
       // Supprimer d'abord les relations dans product_components
       await connection.execute('DELETE FROM product_components WHERE product_id = ?', [id]);
-      
+
       // Puis supprimer le produit
       const [result] = await connection.execute('DELETE FROM products WHERE id = ?', [id]);
-      
+
       if (result.affectedRows === 0) {
         throw new Error('Produit non trouvé');
       }
@@ -342,6 +346,61 @@ router.delete('/:id', auth, async (req, res) => {
   } catch (error) {
     console.error('Erreur suppression produit:', error);
     res.status(500).json({ error: error.message || 'Erreur serveur' });
+  }
+});
+
+// Configuration multer pour photos produits
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../uploads/products');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, 'product-' + uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Seules les images sont autorisées'), false);
+  },
+});
+
+const getBaseUrl = (req) => `${req.protocol}://${req.get('host')}`;
+
+// POST /api/products/upload-image - Upload image produit
+router.post('/upload-image', auth, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Aucune image fournie' });
+
+    const { productId } = req.body;
+    if (!productId) return res.status(400).json({ error: 'ID produit requis' });
+
+    // Supprimer l'ancienne image si existante
+    const [row] = await db.query('SELECT image_url FROM products WHERE id = ?', [productId]);
+    if (row && row.image_url) {
+      const oldPath = path.join(__dirname, '../uploads/products', path.basename(row.image_url));
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+
+    const imageUrl = `${getBaseUrl(req)}/uploads/products/${req.file.filename}`;
+    await db.query('UPDATE products SET image_url = ? WHERE id = ?', [imageUrl, productId]);
+
+    res.json({ success: true, imageUrl });
+  } catch (error) {
+    console.error('Erreur upload image produit:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'upload' });
   }
 });
 

@@ -27,10 +27,14 @@ export interface Product {
   name: string;
   description: string;
   productNumber: string;
-  components: ProductComponent[];
   productionCost: number;
   sellingPrice: number;
   quantity: number;
+  imageUrl?: string;
+  components: {
+    componentId: string;
+    quantity: number;
+  }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -164,6 +168,7 @@ export interface BonSortieListItem {
   clientCompanyName: string;
   chantierId: string;
   chantierName: string;
+  personnel?: string;
   createdBy: string;
   createdByName: string;
   createdAt: string;
@@ -189,6 +194,7 @@ export interface BonSortieDetail {
   chantierId: string;
   chantierName: string;
   chantierAddress: string;
+  personnel?: string;
   createdBy: string;
   createdByName: string;
   createdAt: string;

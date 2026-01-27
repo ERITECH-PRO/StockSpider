@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo, useEf
 import { Component, Product, Supplier, StockMovement, DashboardStats, AssembledProduct, ProductInAssembly, ComponentToBuy } from '../types';
 import { apiService } from '../services/api';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../hooks/useAuth';
 
 interface DataContextType {
   // État des données
@@ -40,6 +41,8 @@ interface DataContextType {
   reloadComponents: () => Promise<void>;
   getDashboardStats: () => DashboardStats;
   getLowStockComponents: () => Component[];
+  getOutOfStockProducts: () => Product[];
+  getOutOfStockComponents: () => Component[];
 
   // Indicateurs de synchronisation
   isSyncing: boolean;
@@ -70,6 +73,7 @@ interface DataProviderProps {
 
 export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const { showError, showSuccess } = useToast();
+  const { isAuthenticated } = useAuth();
 
   // États des données
   const [components, setComponents] = useState<Component[]>([]);
@@ -128,12 +132,16 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       if (successMessage) {
         // Afficher uniquement la notification de synchronisation pour éviter les doublons
         showSyncNotification('success', 'Synchronisation réussie', successMessage);
+      } else {
+        hideSyncNotification();
       }
       return result;
     } catch (error) {
       if (errorMessage) {
         // Afficher uniquement la notification de synchronisation pour éviter les doublons
         showSyncNotification('error', 'Erreur de synchronisation', errorMessage);
+      } else {
+        hideSyncNotification();
       }
       throw error;
     } finally {
@@ -143,20 +151,24 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   // Charger les données initiales
   const loadData = useCallback(async () => {
-    await syncWithIndicator(async () => {
-      setLoading(true);
-      const [componentsData, productsData, statsData, suppliersData] = await Promise.all([
-        apiService.getComponents(),
-        apiService.getProducts(),
-        apiService.getDashboardStats(),
-        apiService.getSuppliers()
-      ]);
+    setLoading(true);
+    try {
+      await syncWithIndicator(async () => {
+        const [componentsData, productsData, statsData, suppliersData] = await Promise.all([
+          apiService.getComponents(),
+          apiService.getProducts(),
+          apiService.getDashboardStats(),
+          apiService.getSuppliers()
+        ]);
 
-      setComponents(componentsData);
-      setProducts(productsData);
-      setDashboardStats(statsData);
-      setSuppliers(suppliersData);
-    }, 'Données chargées avec succès', 'Impossible de charger les données');
+        setComponents(componentsData);
+        setProducts(productsData);
+        setDashboardStats(statsData);
+        setSuppliers(suppliersData);
+      }, 'Données chargées avec succès', 'Impossible de charger les données');
+    } finally {
+      setLoading(false);
+    }
   }, [syncWithIndicator]);
 
   // Actions pour les composants
@@ -707,15 +719,25 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     return components.filter(c => c.quantity <= c.minStock);
   }, [components]);
 
-  // Charger les données au démarrage
+  const getOutOfStockProducts = useCallback(() => {
+    return products.filter(p => (Number(p.quantity) || 0) <= 0);
+  }, [products]);
+
+  const getOutOfStockComponents = useCallback(() => {
+    return components.filter(c => (Number(c.quantity) || 0) <= 0);
+  }, [components]);
+
+  // Charger les données au démarrage ou quand l'authentification change
   React.useEffect(() => {
-    const hasToken = !!localStorage.getItem('stockspider_token');
-    if (hasToken) {
+    if (isAuthenticated) {
       loadData();
     } else {
-      setLoading(false);
+      const hasToken = !!localStorage.getItem('stockspider_token');
+      if (!hasToken) {
+        setLoading(false);
+      }
     }
-  }, [loadData]);
+  }, [isAuthenticated, loadData]);
 
   // Synchroniser automatiquement les composants à acheter quand le stock change
   useEffect(() => {
@@ -763,6 +785,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     reloadComponents,
     getDashboardStats,
     getLowStockComponents,
+    getOutOfStockProducts,
+    getOutOfStockComponents,
 
     // Indicateurs de synchronisation
     isSyncing,
@@ -794,6 +818,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     reloadComponents,
     getDashboardStats,
     getLowStockComponents,
+    getOutOfStockProducts,
+    getOutOfStockComponents,
     isSyncing,
     lastSyncTime,
     syncNotification,

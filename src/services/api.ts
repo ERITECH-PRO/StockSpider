@@ -14,12 +14,12 @@ import {
 const resolvedApiBase = (() => {
   const envUrl = (import.meta as any)?.env?.VITE_API_URL as string | undefined;
   if (envUrl) return envUrl.replace(/\/$/, '');
-  
+
   if (typeof window !== 'undefined') {
     // Use api subdomain for production (https) or use localhost for development
     const protocol = window.location.protocol;
     const hostname = window.location.hostname;
-    
+
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return `http://${hostname}:3002`;
     } else {
@@ -27,7 +27,7 @@ const resolvedApiBase = (() => {
       return `https://api.spiderhome.org`;
     }
   }
-  
+
   return `http://localhost:3002`;
 })();
 
@@ -36,20 +36,20 @@ const API_BASE_URL = `${resolvedApiBase}/api`;
 // Helper function to convert image URLs to use the correct API base
 const getImageUrl = (imagePath: string): string => {
   if (!imagePath) return '';
-  
+
   // If it's already a full URL, extract the path portion and use current API base
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     try {
       // Parse the URL to extract the path
       const url = new URL(imagePath);
       const pathWithQuery = url.pathname + url.search;
-      
+
       // Reconstruct with current API base
       // For uploads, use the base without /api suffix
       if (pathWithQuery.startsWith('/uploads/')) {
         return `${resolvedApiBase}${pathWithQuery}`;
       }
-      
+
       // For other API routes, use the full API base
       return `${API_BASE_URL}${pathWithQuery}`;
     } catch (e) {
@@ -57,17 +57,17 @@ const getImageUrl = (imagePath: string): string => {
       return imagePath.replace(/https?:\/\/[^/]+/i, resolvedApiBase);
     }
   }
-  
+
   // If it's a relative path, prepend the correct API base
   if (!imagePath.startsWith('/')) {
     return `${resolvedApiBase}/${imagePath}`;
   }
-  
+
   // Absolute path - check if it's an uploads path
   if (imagePath.startsWith('/uploads/')) {
     return `${resolvedApiBase}${imagePath}`;
   }
-  
+
   return `${resolvedApiBase}${imagePath}`;
 };
 
@@ -228,6 +228,32 @@ class ApiService {
     });
   }
 
+  async uploadProductImage(productId: string, imageFile: File): Promise<{ imageUrl: string }> {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+    formData.append('productId', productId);
+
+    const response = await fetch(`${API_BASE_URL}/products/upload-image`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+      },
+      body: formData,
+    });
+
+    if (response.status === 401) {
+      this.logout();
+      throw new Error('Non autorisé (401)');
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Erreur réseau' }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
+
   // Dashboard
   async getDashboardStats(): Promise<DashboardStats> {
     return this.request<DashboardStats>('/dashboard/stats');
@@ -364,14 +390,14 @@ class ApiService {
     return this.request<BonSortieDetail>(`/bons-sortie/${encodeURIComponent(id)}`);
   }
 
-  async createBonSortie(payload: { clientId: string; chantierId: string; items: Array<{ productId: string; quantity: number }> }): Promise<{ id: string; message: string }> {
+  async createBonSortie(payload: { clientId: string; chantierId: string; personnel?: string; items: Array<{ productId: string; quantity: number }> }): Promise<{ id: string; message: string }> {
     return this.request<{ id: string; message: string }>('/bons-sortie', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   }
 
-  async updateBonSortie(id: string, payload: { clientId: string; chantierId: string; items: Array<{ productId: string; quantity: number }> }): Promise<{ id: string; message: string }> {
+  async updateBonSortie(id: string, payload: { clientId: string; chantierId: string; personnel?: string; items: Array<{ productId: string; quantity: number }> }): Promise<{ id: string; message: string }> {
     return this.request<{ id: string; message: string }>(`/bons-sortie/${encodeURIComponent(id)}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
