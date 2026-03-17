@@ -405,8 +405,8 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
               <div className={`absolute top-0 right-0 w-32 h-32 rounded-full -mr-16 -mt-16 opacity-[0.03] group-hover:scale-150 transition-transform duration-700 ${stockStatus.color.replace('text', 'bg')}`}></div>
 
               <div className="relative p-6 bg-white rounded-[1.8rem]">
-                <div className="flex items-start justify-between mb-6">
-                  <div className="flex items-center gap-4">
+                <div className="flex items-start justify-between gap-2 mb-6">
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
                     <div className="shrink-0 w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 shadow-inner group-hover:border-3s-blue/30 transition-colors overflow-hidden">
                       {component.imageUrl ? (
                         <img
@@ -418,9 +418,9 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
                         <Package className="w-8 h-8 text-3s-blue opacity-40 group-hover:scale-110 transition-transform" />
                       )}
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[8px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded ${stockStatus.bg} ${stockStatus.color} border border-current opacity-70`}>{component.id}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[8px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded shrink-0 ${stockStatus.bg} ${stockStatus.color} border border-current opacity-70`}>{component.id}</span>
                         <span className="text-[10px] font-black text-3s-blue uppercase tracking-widest opacity-60 truncate">{getCategoryLabel(component.category)}</span>
                       </div>
                       <h3 className="font-black text-lg text-3s-black uppercase tracking-tight truncate leading-tight mt-0.5">{component.name}</h3>
@@ -428,7 +428,7 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1 shrink-0">
                     <button onClick={() => handleEditComponent(component)} className="p-2 text-gray-300 hover:text-3s-blue hover:bg-blue-50 rounded-xl transition-all"><Edit2 className="w-4 h-4" /></button>
                     <button onClick={() => handleDeleteClick(component)} className="p-2 text-gray-300 hover:text-3s-red hover:bg-red-50 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
                   </div>
