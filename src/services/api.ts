@@ -24,7 +24,7 @@ const resolvedApiBase = (() => {
       return `http://${hostname}:3002`;
     } else {
       // Production: use HTTPS with api subdomain
-      return `https://api.spiderhome.org`;
+      return `https://apistock.spiderhome.org`;
     }
   }
 
