@@ -46,7 +46,7 @@ const AppContent = () => {
       return false;
     }
   });
-  const [loginForm, setLoginForm] = useState({ email: 'admin@stockspider.com', password: '' });
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginLoading, setLoginLoading] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
@@ -193,7 +193,7 @@ const AppContent = () => {
                 value={loginForm.email}
                 onChange={(e) => setLoginForm(prev => ({ ...prev, email: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter"
-                placeholder="admin@stockspider.com"
+                placeholder="email@example.com"
               />
             </div>
 
@@ -205,7 +205,7 @@ const AppContent = () => {
                 value={loginForm.password}
                 onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-3s-blue focus:border-3s-blue font-inter"
-                placeholder="admin123"
+                placeholder="********"
               />
             </div>
 
@@ -221,12 +221,7 @@ const AppContent = () => {
             </button>
           </form>
 
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm text-blue-700 font-inter font-medium">🔗 Connexion MySQL</p>
-            <p className="text-xs text-blue-600 mt-1 font-inter">
-              L'application se connecte à votre base MySQL distante
-            </p>
-          </div>
+          
         </div>
       </div>
     );
