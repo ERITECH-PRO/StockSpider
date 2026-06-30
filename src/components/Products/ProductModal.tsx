@@ -30,6 +30,11 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
     productionCost: Number(product?.productionCost) || 0,
     productNumber: product?.productNumber || '',
     imageUrl: product?.imageUrl || '',
+    pcbRemaining: Number(product?.pcbRemaining) || 0,
+    inProgress: Number(product?.inProgress) || 0,
+    assembledFinished: Number(product?.assembledFinished) || 0,
+    sold: Number(product?.sold) || 0,
+    defective: Number(product?.defective) || 0,
   });
 
   // Mettre à jour le formulaire quand le produit change
@@ -52,6 +57,11 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
         productionCost: Number(product.productionCost) || 0,
         productNumber: product.productNumber || '',
         imageUrl: product.imageUrl || '',
+        pcbRemaining: Number(product.pcbRemaining) || 0,
+        inProgress: Number(product.inProgress) || 0,
+        assembledFinished: Number(product.assembledFinished) || 0,
+        sold: Number(product.sold) || 0,
+        defective: Number(product.defective) || 0,
       });
       setImagePreview(product.imageUrl || null);
       setSelectedImage(null);
@@ -65,6 +75,11 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
         productionCost: 0,
         productNumber: '',
         imageUrl: '',
+        pcbRemaining: 0,
+        inProgress: 0,
+        assembledFinished: 0,
+        sold: 0,
+        defective: 0,
       });
       setImagePreview(null);
       setSelectedImage(null);
@@ -85,7 +100,8 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
     const dataToSend = {
       ...formData,
       productionCost: Number(formData.productionCost) || 0,
-      quantity: 0, // Quantité fixée à 0 car non utilisée
+      // La quantité de stock "produit fini" reflète les modules assemblés non vendus
+      quantity: Number(formData.assembledFinished) || 0,
       sellingPrice: 0, // Prix de vente fixé à 0 car non utilisé
     };
 
@@ -233,6 +249,9 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
     // Conversion des valeurs numériques
     if (field === 'productionCost') {
       value = parseFloat(value) || 0;
+    }
+    if (['pcbRemaining', 'inProgress', 'assembledFinished', 'sold', 'defective'].includes(field)) {
+      value = parseInt(value) || 0;
     }
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -382,6 +401,37 @@ const ProductModal = ({ isOpen, onClose, product }: ProductModalProps) => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Description du produit..."
             />
+          </div>
+
+          {/* Suivi de production (5 états) */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-1">Suivi de production</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Répartition des modules par état. Total :{' '}
+              <span className="font-medium text-gray-700">
+                {formData.pcbRemaining + formData.inProgress + formData.assembledFinished + formData.sold + formData.defective}
+              </span>
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {([
+                ['pcbRemaining', 'PCB nu'],
+                ['inProgress', 'En cours'],
+                ['assembledFinished', 'Assemblé'],
+                ['sold', 'Vendu'],
+                ['defective', 'Panne'],
+              ] as const).map(([field, label]) => (
+                <div key={field}>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData[field]}
+                    onChange={(e) => handleChange(field, e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

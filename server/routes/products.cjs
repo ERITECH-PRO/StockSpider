@@ -17,10 +17,15 @@ router.get('/', auth, async (req, res) => {
         production_cost as productionCost,
         selling_price as sellingPrice,
         quantity,
+        pcb_remaining as pcbRemaining,
+        in_progress as inProgress,
+        assembled_finished as assembledFinished,
+        sold,
+        defective,
         image_url as imageUrl,
         created_at as createdAt,
         updated_at as updatedAt
-      FROM products 
+      FROM products
       ORDER BY name
     `);
 
@@ -58,6 +63,11 @@ router.post('/', auth, async (req, res) => {
       productionCost = 0,
       sellingPrice = 0,
       quantity = 0,
+      pcbRemaining = 0,
+      inProgress = 0,
+      assembledFinished = 0,
+      sold = 0,
+      defective = 0,
       imageUrl = ''
     } = req.body;
 
@@ -79,9 +89,9 @@ router.post('/', auth, async (req, res) => {
     await db.transaction(async (connection) => {
       // Créer le produit
       await connection.execute(`
-        INSERT INTO products (id, name, description, product_number, production_cost, selling_price, quantity, image_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, [productId, name, description, productNumber || '', productionCost, sellingPrice, quantity, imageUrl]);
+        INSERT INTO products (id, name, description, product_number, production_cost, selling_price, quantity, pcb_remaining, in_progress, assembled_finished, sold, defective, image_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [productId, name, description, productNumber || '', productionCost, sellingPrice, quantity, pcbRemaining, inProgress, assembledFinished, sold, defective, imageUrl]);
 
       // Ajouter les composants (grouper par component_id pour éviter les doublons)
       if (components.length > 0) {
@@ -124,9 +134,14 @@ router.post('/', auth, async (req, res) => {
         production_cost as productionCost,
         selling_price as sellingPrice,
         quantity,
+        pcb_remaining as pcbRemaining,
+        in_progress as inProgress,
+        assembled_finished as assembledFinished,
+        sold,
+        defective,
         created_at as createdAt,
         updated_at as updatedAt
-      FROM products 
+      FROM products
       WHERE id = ?
     `, [productId]);
 
@@ -165,7 +180,7 @@ router.put('/:id', auth, async (req, res) => {
 
     // Charger l'état actuel du produit pour supporter les mises à jour partielles
     const existingRows = await db.query(
-      'SELECT name, description, product_number, production_cost, selling_price, quantity, image_url FROM products WHERE id = ?',
+      'SELECT name, description, product_number, production_cost, selling_price, quantity, pcb_remaining, in_progress, assembled_finished, sold, defective, image_url FROM products WHERE id = ?',
       [id]
     );
     if (!existingRows || existingRows.length === 0) {
@@ -181,6 +196,11 @@ router.put('/:id', auth, async (req, res) => {
       productionCost: productionCost ?? existing.production_cost ?? 0,
       sellingPrice: sellingPrice ?? existing.selling_price,
       quantity: quantity ?? existing.quantity ?? 0,
+      pcbRemaining: req.body.pcbRemaining ?? existing.pcb_remaining ?? 0,
+      inProgress: req.body.inProgress ?? existing.in_progress ?? 0,
+      assembledFinished: req.body.assembledFinished ?? existing.assembled_finished ?? 0,
+      sold: req.body.sold ?? existing.sold ?? 0,
+      defective: req.body.defective ?? existing.defective ?? 0,
       imageUrl: imageUrl ?? existing.image_url ?? '',
     };
 
@@ -191,10 +211,10 @@ router.put('/:id', auth, async (req, res) => {
     await db.transaction(async (connection) => {
       // Mettre à jour le produit (avec valeurs fusionnées)
       await connection.execute(`
-        UPDATE products 
-        SET name = ?, description = ?, product_number = ?, production_cost = ?, selling_price = ?, quantity = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP
+        UPDATE products
+        SET name = ?, description = ?, product_number = ?, production_cost = ?, selling_price = ?, quantity = ?, pcb_remaining = ?, in_progress = ?, assembled_finished = ?, sold = ?, defective = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [merged.name, merged.description, merged.productNumber, merged.productionCost, merged.sellingPrice, merged.quantity, merged.imageUrl, id]);
+      `, [merged.name, merged.description, merged.productNumber, merged.productionCost, merged.sellingPrice, merged.quantity, merged.pcbRemaining, merged.inProgress, merged.assembledFinished, merged.sold, merged.defective, merged.imageUrl, id]);
 
       // Si une liste de composants est fournie, alors remplacer; sinon ne pas toucher
       if (Array.isArray(components)) {
@@ -243,9 +263,14 @@ router.put('/:id', auth, async (req, res) => {
         production_cost as productionCost,
         selling_price as sellingPrice,
         quantity,
+        pcb_remaining as pcbRemaining,
+        in_progress as inProgress,
+        assembled_finished as assembledFinished,
+        sold,
+        defective,
         created_at as createdAt,
         updated_at as updatedAt
-      FROM products 
+      FROM products
       WHERE id = ?
     `, [id]);
 

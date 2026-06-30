@@ -113,7 +113,7 @@ class Database {
         quantity INT DEFAULT 0,
         unit_price DECIMAL(10,2) DEFAULT 0.00,
         supplier VARCHAR(255),
-        category ENUM('condensateur', 'resistance', 'relais', 'microcontroleur', 'connecteur', 'inducteur', 'diode', 'transistor', 'capteur', 'autre') DEFAULT 'autre',
+        category ENUM('condensateur', 'resistance', 'relais', 'microcontroleur', 'connecteur', 'inducteur', 'diode', 'transistor', 'capteur', 'alimentation', 'bornier', 'bouton', 'expanseur', 'fusible', 'led', 'optocoupleur', 'pcb', 'regulateur', 'support', 'autre') DEFAULT 'autre',
         min_stock INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -128,6 +128,11 @@ class Database {
         production_cost DECIMAL(10,2) DEFAULT 0.00,
         selling_price DECIMAL(10,2) DEFAULT 0.00,
         quantity INT DEFAULT 0,
+        pcb_remaining INT DEFAULT 0,
+        in_progress INT DEFAULT 0,
+        assembled_finished INT DEFAULT 0,
+        sold INT DEFAULT 0,
+        defective INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )`,
@@ -282,6 +287,45 @@ class Database {
           AFTER description
         `);
         console.log('✅ Colonne product_number ajoutée à la table products');
+      }
+
+      // Ajouter les colonnes de suivi des 5 états de production aux produits
+      const stateColumns = [
+        ['pcb_remaining', 'quantity'],
+        ['in_progress', 'pcb_remaining'],
+        ['assembled_finished', 'in_progress'],
+        ['sold', 'assembled_finished'],
+        ['defective', 'sold']
+      ];
+      for (const [col, afterCol] of stateColumns) {
+        const exists = await this.query(`
+          SELECT COLUMN_NAME
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'products'
+          AND COLUMN_NAME = ?
+        `, [col]);
+        if (exists.length === 0) {
+          await this.query(`ALTER TABLE products ADD COLUMN \`${col}\` INT DEFAULT 0 AFTER \`${afterCol}\``);
+          console.log(`✅ Colonne ${col} ajoutée à la table products`);
+        }
+      }
+
+      // Étendre l'ENUM des catégories de composants si nécessaire
+      const catCol = await this.query(`
+        SELECT COLUMN_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'components'
+        AND COLUMN_NAME = 'category'
+      `);
+      if (catCol.length > 0 && !String(catCol[0].COLUMN_TYPE).includes("'bornier'")) {
+        await this.query(`
+          ALTER TABLE components MODIFY COLUMN category
+          ENUM('condensateur','resistance','relais','microcontroleur','connecteur','inducteur','diode','transistor','capteur','alimentation','bornier','bouton','expanseur','fusible','led','optocoupleur','pcb','regulateur','support','autre')
+          DEFAULT 'autre'
+        `);
+        console.log('✅ ENUM des catégories de composants étendu');
       }
     } catch (error) {
       console.error('❌ Erreur lors de la migration:', error);

@@ -30,6 +30,12 @@ export interface Product {
   productionCost: number;
   sellingPrice: number;
   quantity: number;
+  // Suivi détaillé des 5 états de production (inventaire SpiderRoll)
+  pcbRemaining?: number;      // PCB nus restants
+  inProgress?: number;        // en cours d'assemblage
+  assembledFinished?: number; // assemblés finis
+  sold?: number;              // vendus
+  defective?: number;         // en panne
   imageUrl?: string;
   components: {
     componentId: string;
@@ -211,6 +217,16 @@ export type ComponentCategory =
   | 'diode'
   | 'transistor'
   | 'capteur'
+  | 'alimentation'
+  | 'bornier'
+  | 'bouton'
+  | 'expanseur'
+  | 'fusible'
+  | 'led'
+  | 'optocoupleur'
+  | 'pcb'
+  | 'regulateur'
+  | 'support'
   | 'autre';
 
 export interface DashboardStats {

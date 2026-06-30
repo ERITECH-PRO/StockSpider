@@ -88,7 +88,6 @@ const CATEGORY_MAPPINGS: Record<string, ComponentCategory> = {
   'diode': 'diode',
   'diodes': 'diode',
   'd': 'diode',
-  'led': 'diode',
   'zener': 'diode',
   'schottky': 'diode',
   
@@ -112,6 +111,60 @@ const CATEGORY_MAPPINGS: Record<string, ComponentCategory> = {
   'accelerometer': 'capteur',
   'gyroscope': 'capteur',
   'magnetometer': 'capteur',
+
+  // Alimentations
+  'alimentation': 'alimentation',
+  'alimenattion': 'alimentation',
+  'power': 'alimentation',
+  'psu': 'alimentation',
+
+  // Borniers
+  'bornier': 'bornier',
+  'terminal': 'bornier',
+  'terminal_block': 'bornier',
+
+  // Boutons / interrupteurs
+  'bouton': 'bouton',
+  'button': 'bouton',
+  'switch': 'bouton',
+  'tactile': 'bouton',
+
+  // Expanseurs d'E/S
+  'expanseur': 'expanseur',
+  'expandeur': 'expanseur',
+  'expender': 'expanseur',
+  'expander': 'expanseur',
+  'io_expander': 'expanseur',
+
+  // Fusibles
+  'fusible': 'fusible',
+  'fuse': 'fusible',
+
+  // LED
+  'led': 'led',
+
+  // Optocoupleurs
+  'optocoupleur': 'optocoupleur',
+  'optocoupler': 'optocoupleur',
+  'opto': 'optocoupleur',
+
+  // PCB
+  'pcb': 'pcb',
+  'carte': 'pcb',
+  'board': 'pcb',
+
+  // Régulateurs
+  'regulateur': 'regulateur',
+  'regulator': 'regulateur',
+  'ldo': 'regulateur',
+  'vreg': 'regulateur',
+
+  // Supports
+  'support': 'support',
+  'support_fusible': 'support',
+  'support_relai': 'support',
+  'socket_relay': 'support',
+  'holder': 'support',
 };
 
 function normalizeColumnName(name: string): string {

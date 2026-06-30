@@ -84,11 +84,13 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
 
   const categories: ComponentCategory[] = [
     'condensateur', 'resistance', 'relais', 'microcontroleur',
-    'connecteur', 'inducteur', 'diode', 'transistor', 'capteur', 'autre'
+    'connecteur', 'inducteur', 'diode', 'transistor', 'capteur',
+    'alimentation', 'bornier', 'bouton', 'expanseur', 'fusible',
+    'led', 'optocoupleur', 'pcb', 'regulateur', 'support', 'autre'
   ];
 
   const getCategoryLabel = (category: ComponentCategory) => {
-    const labels = {
+    const labels: Record<ComponentCategory, string> = {
       'condensateur': 'Condensateur',
       'resistance': 'Résistance',
       'relais': 'Relais',
@@ -98,6 +100,16 @@ const ComponentModal = ({ isOpen, onClose, component }: ComponentModalProps) => 
       'diode': 'Diode',
       'transistor': 'Transistor',
       'capteur': 'Capteur',
+      'alimentation': 'Alimentation',
+      'bornier': 'Bornier',
+      'bouton': 'Bouton',
+      'expanseur': 'Expanseur d\'E/S',
+      'fusible': 'Fusible',
+      'led': 'LED',
+      'optocoupleur': 'Optocoupleur',
+      'pcb': 'PCB',
+      'regulateur': 'Régulateur',
+      'support': 'Support',
       'autre': 'Autre'
     };
     return labels[category];

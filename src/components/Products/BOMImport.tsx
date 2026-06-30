@@ -366,6 +366,16 @@ R2,Résistance 1kΩ,R1K-0805,0805,200,0.015,Vishay,resistance`;
                                   <option value="diode">Diode</option>
                                   <option value="transistor">Transistor</option>
                                   <option value="capteur">Capteur</option>
+                                  <option value="alimentation">Alimentation</option>
+                                  <option value="bornier">Bornier</option>
+                                  <option value="bouton">Bouton</option>
+                                  <option value="expanseur">Expanseur d'E/S</option>
+                                  <option value="fusible">Fusible</option>
+                                  <option value="led">LED</option>
+                                  <option value="optocoupleur">Optocoupleur</option>
+                                  <option value="pcb">PCB</option>
+                                  <option value="regulateur">Régulateur</option>
+                                  <option value="support">Support</option>
                                   <option value="autre">Autre</option>
                                 </select>
                               ) : (

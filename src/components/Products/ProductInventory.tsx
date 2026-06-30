@@ -131,6 +131,35 @@ const ProductInventory = () => {
                                 </div>
 
                                 <div className="mt-auto space-y-5">
+                                    {/* Répartition des 5 états de production */}
+                                    {(() => {
+                                        const states = [
+                                            { label: 'PCB', value: product.pcbRemaining || 0, color: 'text-gray-600 bg-gray-50 border-gray-100' },
+                                            { label: 'Cours', value: product.inProgress || 0, color: 'text-amber-600 bg-amber-50 border-amber-100' },
+                                            { label: 'Assemblé', value: product.assembledFinished || 0, color: 'text-blue-600 bg-blue-50 border-blue-100' },
+                                            { label: 'Vendu', value: product.sold || 0, color: 'text-green-600 bg-green-50 border-green-100' },
+                                            { label: 'Panne', value: product.defective || 0, color: 'text-red-600 bg-red-50 border-red-100' },
+                                        ];
+                                        const total = states.reduce((s, x) => s + x.value, 0);
+                                        if (total === 0) return null;
+                                        return (
+                                            <div className="border-t border-gray-50 pt-4">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-[8px] font-black text-3s-gray-medium uppercase tracking-[0.1em]">Production</span>
+                                                    <span className="text-[10px] font-bold text-3s-black font-mono">{total} u.</span>
+                                                </div>
+                                                <div className="grid grid-cols-5 gap-1">
+                                                    {states.map((s) => (
+                                                        <div key={s.label} className={`text-center px-1 py-1.5 rounded-lg border ${s.color}`}>
+                                                            <span className="block text-sm font-black font-mono leading-none">{s.value}</span>
+                                                            <span className="block text-[7px] font-bold uppercase tracking-tight mt-0.5">{s.label}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
                                     <div className="flex items-end justify-between border-t border-gray-50 pt-4">
                                         <div>
                                             <span className="block text-[8px] font-black text-3s-gray-medium uppercase tracking-[0.1em] mb-1">Prix Catalogue</span>

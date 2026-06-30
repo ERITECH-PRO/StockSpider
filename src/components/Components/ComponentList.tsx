@@ -33,7 +33,9 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
 
   const categories: (ComponentCategory | 'all')[] = [
     'all', 'condensateur', 'resistance', 'relais', 'microcontroleur',
-    'connecteur', 'inducteur', 'diode', 'transistor', 'capteur', 'autre'
+    'connecteur', 'inducteur', 'diode', 'transistor', 'capteur',
+    'alimentation', 'bornier', 'bouton', 'expanseur', 'fusible',
+    'led', 'optocoupleur', 'pcb', 'regulateur', 'support', 'autre'
   ];
 
   // Fonction pour générer un ID court pour les composants
@@ -206,7 +208,7 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
     });
 
   const getCategoryLabel = (category: ComponentCategory | 'all') => {
-    const labels = {
+    const labels: Record<ComponentCategory | 'all', string> = {
       'all': 'Toutes',
       'condensateur': 'Condensateurs',
       'resistance': 'Résistances',
@@ -217,6 +219,16 @@ const ComponentList = ({ searchQuery }: ComponentListProps) => {
       'diode': 'Diodes',
       'transistor': 'Transistors',
       'capteur': 'Capteurs',
+      'alimentation': 'Alimentations',
+      'bornier': 'Borniers',
+      'bouton': 'Boutons',
+      'expanseur': 'Expanseurs d\'E/S',
+      'fusible': 'Fusibles',
+      'led': 'LED',
+      'optocoupleur': 'Optocoupleurs',
+      'pcb': 'PCB',
+      'regulateur': 'Régulateurs',
+      'support': 'Supports',
       'autre': 'Autres'
     };
     return labels[category];
