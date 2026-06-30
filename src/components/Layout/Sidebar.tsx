@@ -20,6 +20,8 @@ import {
   ShoppingBag,
   AlertTriangle,
   CircuitBoard,
+  Coins,
+  LineChart,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -39,6 +41,8 @@ const Sidebar = ({ currentPage, onPageChange, lowStockCount, isCollapsed, onTogg
       title: 'Pilotage',
       items: [
         { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+        { id: 'cost-revient', label: 'Coût de revient', icon: Coins },
+        { id: 'financial-analysis', label: 'Analyse financière', icon: LineChart },
         { id: 'costs', label: 'Coûts & marges', icon: DollarSign },
       ]
     },

@@ -213,6 +213,18 @@ class ApiService {
     return this.request(`/dashboard/overview`);
   }
 
+  // Finance — coûts, marges, valeurs de stock (calcul backend)
+  async getFinanceOverview(): Promise<{ rows: any[]; summary: any }> {
+    return this.request(`/finance/overview`);
+  }
+
+  async updateCostItems(productId: string, items: { label: string; amount: number }[]): Promise<{ rows: any[]; summary: any }> {
+    return this.request(`/finance/cost-items/${productId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
+    });
+  }
+
   // Mouvements de stock (table MySQL stock_movements)
   async getStockMovements(params: { limit?: number; componentId?: string; type?: string } = {}): Promise<any[]> {
     const qs = new URLSearchParams();

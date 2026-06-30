@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Package, Box, AlertTriangle, DollarSign, Activity, BarChart3, ShoppingCart, Layers, Ban, XCircle } from 'lucide-react';
+import { Package, Box, AlertTriangle, DollarSign, Activity, BarChart3, ShoppingCart, Layers, Ban, XCircle, Coins, Percent, TrendingDown } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { formatPriceCurrency } from '../../utils/priceFormatter';
 
@@ -23,6 +23,7 @@ interface Overview {
 
 const Dashboard = () => {
   const [data, setData] = useState<Overview | null>(null);
+  const [finance, setFinance] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,6 +31,11 @@ const Dashboard = () => {
       try { setData(await apiService.getDashboardOverview()); }
       catch (e) { console.error('Erreur overview dashboard:', e); }
       finally { setLoading(false); }
+    })();
+    // KPI financiers (tolérant : nécessite la migration finance)
+    (async () => {
+      try { const f = await apiService.getFinanceOverview(); setFinance(f.summary); }
+      catch (e) { /* migration finance non appliquée : on masque la section */ }
     })();
   }, []);
 
@@ -91,6 +97,18 @@ const Dashboard = () => {
           ))}
         </div>
       </div>
+
+      {/* KPI financiers (si migration finance appliquée) */}
+      {finance && (
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <div className="card-3s p-4"><p className="text-[11px] font-bold text-3s-gray-medium uppercase tracking-wider flex items-center gap-1"><DollarSign className="w-3 h-3" /> Valeur stock</p><p className="text-xl font-black text-3s-black mt-1">{formatPriceCurrency(finance.totalStockValue)}</p></div>
+          <div className="card-3s p-4"><p className="text-[11px] font-bold text-3s-gray-medium uppercase tracking-wider flex items-center gap-1"><Coins className="w-3 h-3" /> Coût composants</p><p className="text-xl font-black text-3s-blue mt-1">{formatPriceCurrency(finance.componentStockValue)}</p></div>
+          <div className="card-3s p-4"><p className="text-[11px] font-bold text-3s-gray-medium uppercase tracking-wider flex items-center gap-1"><Coins className="w-3 h-3" /> Bénéfice potentiel</p><p className="text-xl font-black text-green-600 mt-1">{formatPriceCurrency(finance.potentialBenefit)}</p></div>
+          <div className="card-3s p-4"><p className="text-[11px] font-bold text-3s-gray-medium uppercase tracking-wider flex items-center gap-1"><Layers className="w-3 h-3" /> Coût moyen/module</p><p className="text-xl font-black text-3s-black mt-1">{formatPriceCurrency(finance.avgCostPerModule)}</p></div>
+          <div className="card-3s p-4"><p className="text-[11px] font-bold text-3s-gray-medium uppercase tracking-wider flex items-center gap-1"><Percent className="w-3 h-3" /> Marge moyenne</p><p className="text-xl font-black text-purple-600 mt-1">{(Number(finance.avgMarginPercent) || 0).toFixed(1)}%</p></div>
+          <div className="card-3s p-4"><p className="text-[11px] font-bold text-3s-gray-medium uppercase tracking-wider flex items-center gap-1"><TrendingDown className="w-3 h-3" /> Produits faible marge</p><p className="text-xl font-black text-orange-500 mt-1">{finance.lowMarginCount}</p></div>
+        </div>
+      )}
 
       {/* Approvisionnement + Ruptures + Bloqués */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

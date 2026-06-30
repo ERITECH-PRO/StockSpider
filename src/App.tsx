@@ -14,6 +14,8 @@ import ProductList from './components/Products/ProductList';
 import ProductInventory from './components/Products/ProductInventory';
 import ProductStateView from './components/Products/ProductStateView';
 import ProductModal from './components/Products/ProductModal';
+import CostRevient from './components/Finance/CostRevient';
+import FinancialAnalysis from './components/Finance/FinancialAnalysis';
 import AssemblyList from './components/Assembly/AssemblyList';
 import ProductsInAssembly from './components/Assembly/ProductsInAssembly';
 import ComponentsToBuy from './components/Assembly/ComponentsToBuy';
@@ -136,6 +138,10 @@ const AppContent = () => {
         return <ProductStateView stateKey="pcbRemaining" title="PCB restants" subtitle="Cartes nues restantes par référence (colonne pcb_remaining)." accent="text-gray-600" accentBar="bg-gray-400" />;
       case 'movements':
         return <StockMovements />;
+      case 'cost-revient':
+        return <CostRevient />;
+      case 'financial-analysis':
+        return <FinancialAnalysis />;
       case 'costs':
         return <CostsAnalysis />;
       case 'suppliers':
