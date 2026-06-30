@@ -12,6 +12,7 @@ import ComponentList from './components/Components/ComponentList';
 import ComponentModal from './components/Components/ComponentModal';
 import ProductList from './components/Products/ProductList';
 import ProductInventory from './components/Products/ProductInventory';
+import ProductStateView from './components/Products/ProductStateView';
 import ProductModal from './components/Products/ProductModal';
 import AssemblyList from './components/Assembly/AssemblyList';
 import ProductsInAssembly from './components/Assembly/ProductsInAssembly';
@@ -127,6 +128,12 @@ const AppContent = () => {
         return <ComponentsToBuy />;
       case 'assembly':
         return <AssemblyList />;
+      case 'products-sold':
+        return <ProductStateView stateKey="sold" title="Produits vendus" subtitle="Modules vendus par référence (colonne sold)." accent="text-green-600" accentBar="bg-green-500" />;
+      case 'products-defective':
+        return <ProductStateView stateKey="defective" title="Produits défectueux" subtitle="Modules en panne par référence (colonne defective)." accent="text-3s-red" accentBar="bg-red-500" />;
+      case 'products-pcb':
+        return <ProductStateView stateKey="pcbRemaining" title="PCB restants" subtitle="Cartes nues restantes par référence (colonne pcb_remaining)." accent="text-gray-600" accentBar="bg-gray-400" />;
       case 'movements':
         return <StockMovements />;
       case 'costs':

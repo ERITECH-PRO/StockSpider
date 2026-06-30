@@ -202,6 +202,17 @@ class ApiService {
     });
   }
 
+  // Approvisionnement (calcul métier centralisé côté backend)
+  async getProcurement(plan?: Record<string, number>): Promise<{ rows: any[]; summary: any; blockedProducts: any[] }> {
+    const suffix = plan && Object.keys(plan).length ? `?plan=${encodeURIComponent(JSON.stringify(plan))}` : '';
+    return this.request(`/procurement${suffix}`);
+  }
+
+  // Vue d'ensemble dashboard (tout agrégé côté MySQL)
+  async getDashboardOverview(): Promise<any> {
+    return this.request(`/dashboard/overview`);
+  }
+
   // Mouvements de stock (table MySQL stock_movements)
   async getStockMovements(params: { limit?: number; componentId?: string; type?: string } = {}): Promise<any[]> {
     const qs = new URLSearchParams();

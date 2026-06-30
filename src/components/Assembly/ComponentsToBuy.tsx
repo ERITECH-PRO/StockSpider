@@ -1,13 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ShoppingCart, CheckCircle, X, Search, Download, Package,
   SlidersHorizontal, AlertTriangle, Layers, Coins, ListChecks
 } from 'lucide-react';
 import { useDataContext } from '../../contexts/DataContext';
+import { apiService } from '../../services/api';
 import * as XLSX from 'xlsx';
 import { formatPrice } from '../../utils/priceFormatter';
-
-const PLAN_KEY = 'spiderProductionPlan';
 
 interface ProcurementRow {
   componentId: string;
@@ -23,70 +22,38 @@ interface ProcurementRow {
 }
 
 const ComponentsToBuy: React.FC = () => {
-  const { components, products, updateStock, reloadComponents } = useDataContext();
+  const { products, updateStock, reloadComponents } = useDataContext();
+
+  const [rows, setRows] = useState<ProcurementRow[]>([]);
+  const [summary, setSummary] = useState({ refsToOrder: 0, refsSufficient: 0, unitsToBuy: 0, totalCost: 0 });
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'to-order' | 'sufficient' | 'all'>('to-order');
   const [showPlan, setShowPlan] = useState(false);
-  const [working, setWorking] = useState<string | null>(null);
 
-  // Plan de production optionnel (override). Vide => base auto = pcb_remaining + in_progress.
-  const [plan, setPlan] = useState<Record<string, number>>(() => {
-    try { return JSON.parse(localStorage.getItem(PLAN_KEY) || '{}'); } catch { return {}; }
-  });
+  // Plan de production éphémère (non persisté). Vide => base auto = pcb_remaining + in_progress.
+  const [plan, setPlan] = useState<Record<string, number>>({});
 
-  const persistPlan = (next: Record<string, number>) => {
-    setPlan(next);
-    localStorage.setItem(PLAN_KEY, JSON.stringify(next));
-  };
+  // Le calcul métier est fait par le backend : ici on ne fait qu'afficher.
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiService.getProcurement(plan);
+      setRows(res.rows || []);
+      setSummary(res.summary || { refsToOrder: 0, refsSufficient: 0, unitsToBuy: 0, totalCost: 0 });
+    } catch (e) {
+      console.error('Erreur chargement approvisionnement:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [plan]);
 
-  // Quantité à produire retenue pour un produit : override saisi, sinon (PCB nus + en cours).
-  const targetFor = (p: any): number => {
-    const override = plan[p.id];
-    if (override !== undefined && override !== null && override !== '') return Math.max(0, Number(override) || 0);
-    return Math.max(0, (Number(p.pcbRemaining) || 0) + (Number(p.inProgress) || 0));
-  };
+  useEffect(() => { load(); }, [load]);
 
-  // Calcul du besoin agrégé à partir des nomenclatures (product_components) et du stock réel.
-  const rows: ProcurementRow[] = useMemo(() => {
-    const need: Record<string, number> = {};
-    products.forEach((p: any) => {
-      const target = targetFor(p);
-      if (target <= 0) return;
-      (p.components || []).forEach((bl: any) => {
-        const qty = Number(bl.quantity) || 0;
-        if (!bl.componentId || qty <= 0) return;
-        need[bl.componentId] = (need[bl.componentId] || 0) + qty * target;
-      });
-    });
-
-    return components
-      .map((c) => {
-        const required = need[c.id] || 0;
-        const available = Number(c.quantity) || 0;
-        const toBuy = Math.max(0, required - available);
-        return {
-          componentId: c.id,
-          designation: c.designation,
-          productNumber: c.productNumber,
-          category: c.category,
-          supplier: c.supplier || '',
-          unitPrice: Number(c.unitPrice) || 0,
-          required,
-          available,
-          toBuy,
-          totalCost: toBuy * (Number(c.unitPrice) || 0),
-        };
-      })
-      .filter((r) => r.required > 0)
-      .sort((a, b) => b.toBuy - a.toBuy);
-  }, [components, products, plan]);
-
-  const categories = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.category))).sort(),
-    [rows]
-  );
+  const categories = useMemo(() => Array.from(new Set(rows.map((r) => r.category))).sort(), [rows]);
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
@@ -100,17 +67,6 @@ const ComponentsToBuy: React.FC = () => {
       return true;
     });
   }, [rows, statusFilter, categoryFilter, searchQuery]);
-
-  // Indicateurs (sur l'ensemble, indépendamment des filtres)
-  const kpi = useMemo(() => {
-    const toOrder = rows.filter((r) => r.toBuy > 0);
-    return {
-      refsToOrder: toOrder.length,
-      refsSufficient: rows.length - toOrder.length,
-      unitsToBuy: toOrder.reduce((s, r) => s + r.toBuy, 0),
-      totalCost: toOrder.reduce((s, r) => s + r.totalCost, 0),
-    };
-  }, [rows]);
 
   const exportToExcel = () => {
     const data = filtered.map((r) => ({
@@ -136,7 +92,7 @@ const ComponentsToBuy: React.FC = () => {
     setWorking(r.componentId);
     try {
       await updateStock(r.componentId, r.toBuy, 'in', `Approvisionnement validé : ${r.designation}`);
-      await reloadComponents();
+      await Promise.all([reloadComponents(), load()]);
     } catch (e) {
       console.error('Erreur validation achat:', e);
     } finally {
@@ -145,65 +101,48 @@ const ComponentsToBuy: React.FC = () => {
   };
 
   const resetFilters = () => { setSearchQuery(''); setCategoryFilter(''); setStatusFilter('to-order'); };
-
   const catLabel = (c: string) => c.charAt(0).toUpperCase() + c.slice(1);
 
   return (
     <div className="p-6 space-y-6 bg-3s-gray-light min-h-full font-inter">
-      {/* En-tête */}
       <div>
         <h1 className="text-2xl font-bold text-3s-black">Composants à acheter</h1>
         <p className="text-3s-gray-medium mt-1 text-sm">
-          Calculé automatiquement depuis les nomenclatures et le stock réel — base : modules non finis (PCB + en cours), ajustable via un plan de production.
+          Calcul effectué côté serveur depuis les nomenclatures et le stock réel — base : modules non finis (PCB + en cours), ajustable via un plan de production.
         </p>
       </div>
 
-      {/* KPI */}
+      {/* KPI (depuis le backend) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card-3s p-4 border-l-4 border-l-3s-red">
-          <div className="flex items-center gap-2 text-3s-gray-medium text-[11px] font-bold uppercase tracking-wider">
-            <AlertTriangle className="w-3.5 h-3.5" /> Réf. à commander
-          </div>
-          <div className="text-3xl font-black text-3s-red mt-1">{kpi.refsToOrder}</div>
+          <div className="flex items-center gap-2 text-3s-gray-medium text-[11px] font-bold uppercase tracking-wider"><AlertTriangle className="w-3.5 h-3.5" /> Réf. à commander</div>
+          <div className="text-3xl font-black text-3s-red mt-1">{summary.refsToOrder}</div>
         </div>
         <div className="card-3s p-4 border-l-4 border-l-3s-blue">
-          <div className="flex items-center gap-2 text-3s-gray-medium text-[11px] font-bold uppercase tracking-wider">
-            <Layers className="w-3.5 h-3.5" /> Pièces à acheter
-          </div>
-          <div className="text-3xl font-black text-3s-black mt-1">{kpi.unitsToBuy.toLocaleString('fr-FR')}</div>
+          <div className="flex items-center gap-2 text-3s-gray-medium text-[11px] font-bold uppercase tracking-wider"><Layers className="w-3.5 h-3.5" /> Pièces à acheter</div>
+          <div className="text-3xl font-black text-3s-black mt-1">{summary.unitsToBuy.toLocaleString('fr-FR')}</div>
         </div>
         <div className="card-3s p-4 border-l-4 border-l-green-500">
-          <div className="flex items-center gap-2 text-3s-gray-medium text-[11px] font-bold uppercase tracking-wider">
-            <Coins className="w-3.5 h-3.5" /> Coût estimé
-          </div>
-          <div className="text-2xl font-black text-green-600 mt-1">{formatPrice(kpi.totalCost)}</div>
+          <div className="flex items-center gap-2 text-3s-gray-medium text-[11px] font-bold uppercase tracking-wider"><Coins className="w-3.5 h-3.5" /> Coût estimé</div>
+          <div className="text-2xl font-black text-green-600 mt-1">{formatPrice(summary.totalCost)}</div>
         </div>
         <div className="card-3s p-4 border-l-4 border-l-gray-300">
-          <div className="flex items-center gap-2 text-3s-gray-medium text-[11px] font-bold uppercase tracking-wider">
-            <ListChecks className="w-3.5 h-3.5" /> Réf. suffisantes
-          </div>
-          <div className="text-3xl font-black text-3s-black mt-1">{kpi.refsSufficient}</div>
+          <div className="flex items-center gap-2 text-3s-gray-medium text-[11px] font-bold uppercase tracking-wider"><ListChecks className="w-3.5 h-3.5" /> Réf. suffisantes</div>
+          <div className="text-3xl font-black text-3s-black mt-1">{summary.refsSufficient}</div>
         </div>
       </div>
 
-      {/* Plan de production (optionnel) */}
+      {/* Plan de production (envoyé au backend) */}
       <div className="card-3s overflow-hidden">
-        <button
-          onClick={() => setShowPlan((s) => !s)}
-          className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 transition-colors"
-        >
-          <span className="flex items-center gap-2 font-bold text-3s-black text-sm">
-            <SlidersHorizontal className="w-4 h-4 text-3s-blue" /> Plan de production (optionnel)
-          </span>
-          <span className="text-xs text-3s-gray-medium">
-            {showPlan ? 'Masquer' : 'Afficher'} · vide = auto (PCB + en cours)
-          </span>
+        <button onClick={() => setShowPlan((s) => !s)} className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 transition-colors">
+          <span className="flex items-center gap-2 font-bold text-3s-black text-sm"><SlidersHorizontal className="w-4 h-4 text-3s-blue" /> Plan de production (optionnel)</span>
+          <span className="text-xs text-3s-gray-medium">{showPlan ? 'Masquer' : 'Afficher'} · vide = auto (PCB + en cours)</span>
         </button>
         {showPlan && (
           <div className="border-t border-gray-100 p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {products.map((p: any) => {
               const auto = (Number(p.pcbRemaining) || 0) + (Number(p.inProgress) || 0);
-              const overridden = plan[p.id] !== undefined && plan[p.id] !== null && (plan[p.id] as any) !== '';
+              const overridden = plan[p.id] !== undefined;
               return (
                 <div key={p.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
                   <div className="min-w-0">
@@ -211,15 +150,14 @@ const ComponentsToBuy: React.FC = () => {
                     <p className="text-[10px] text-3s-gray-medium">Auto : {auto} (PCB {p.pcbRemaining || 0} + en cours {p.inProgress || 0})</p>
                   </div>
                   <input
-                    type="number"
-                    min="0"
-                    value={overridden ? (plan[p.id] as number) : ''}
+                    type="number" min="0"
+                    value={overridden ? plan[p.id] : ''}
                     placeholder={String(auto)}
                     onChange={(e) => {
                       const next = { ...plan };
                       if (e.target.value === '') delete next[p.id];
                       else next[p.id] = Math.max(0, parseInt(e.target.value) || 0);
-                      persistPlan(next);
+                      setPlan(next);
                     }}
                     className={`w-20 px-2 py-1.5 text-sm text-right rounded-lg border outline-none focus:ring-2 focus:ring-3s-blue ${overridden ? 'border-3s-blue bg-blue-50 font-bold' : 'border-gray-200 bg-white'}`}
                   />
@@ -227,12 +165,7 @@ const ComponentsToBuy: React.FC = () => {
               );
             })}
             {Object.keys(plan).length > 0 && (
-              <button
-                onClick={() => persistPlan({})}
-                className="text-xs text-3s-red font-bold hover:underline justify-self-start"
-              >
-                Réinitialiser le plan (revenir à l'auto)
-              </button>
+              <button onClick={() => setPlan({})} className="text-xs text-3s-red font-bold hover:underline justify-self-start">Réinitialiser le plan (revenir à l'auto)</button>
             )}
           </div>
         )}
@@ -242,50 +175,32 @@ const ComponentsToBuy: React.FC = () => {
       <div className="card-3s p-3 flex flex-col md:flex-row gap-3 items-stretch md:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Rechercher par désignation ou référence..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-3s-blue focus:bg-white outline-none"
-          />
+          <input type="text" placeholder="Rechercher par désignation ou référence..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-3s-blue focus:bg-white outline-none" />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as any)}
-          className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-3s-blue"
-        >
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-3s-blue">
           <option value="to-order">À commander</option>
           <option value="sufficient">Suffisant</option>
           <option value="all">Tous</option>
         </select>
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-3s-blue"
-        >
+        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-3s-blue">
           <option value="">Toutes catégories</option>
           {categories.map((c) => <option key={c} value={c}>{catLabel(c)}</option>)}
         </select>
-        <button onClick={resetFilters} className="p-2 text-gray-400 hover:text-3s-red transition-colors" title="Réinitialiser">
-          <X className="w-5 h-5" />
-        </button>
-        <button
-          onClick={exportToExcel}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-3s-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium"
-        >
-          <Download className="w-4 h-4" /> Exporter
-        </button>
+        <button onClick={resetFilters} className="p-2 text-gray-400 hover:text-3s-red transition-colors" title="Réinitialiser"><X className="w-5 h-5" /></button>
+        <button onClick={exportToExcel} className="flex items-center justify-center gap-2 px-4 py-2 bg-3s-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium"><Download className="w-4 h-4" /> Exporter</button>
       </div>
 
-      {/* Tableau ERP */}
-      {filtered.length === 0 ? (
+      {/* Tableau */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center h-64 gap-3">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-3s-blue border-t-transparent"></div>
+          <p className="text-3s-gray-medium animate-pulse">Calcul des besoins en cours...</p>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
           <Package className="w-16 h-16 text-gray-200 mb-4" />
           <h3 className="text-lg font-semibold text-3s-black">Aucun composant à afficher</h3>
-          <p className="text-3s-gray-medium text-sm">
-            {statusFilter === 'to-order' ? 'Aucun manque détecté pour le besoin actuel.' : 'Aucun résultat pour ces filtres.'}
-          </p>
+          <p className="text-3s-gray-medium text-sm">{statusFilter === 'to-order' ? 'Aucun manque détecté pour le besoin actuel.' : 'Aucun résultat pour ces filtres.'}</p>
         </div>
       ) : (
         <div className="card-3s overflow-hidden">
@@ -313,30 +228,18 @@ const ComponentsToBuy: React.FC = () => {
                       <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-bold capitalize">{r.category}</span>
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-3s-black">{r.required.toLocaleString('fr-FR')}</td>
+                    <td className="px-4 py-3 text-right"><span className={r.available > 0 ? 'text-green-600 font-semibold' : 'text-gray-400'}>{r.available.toLocaleString('fr-FR')}</span></td>
                     <td className="px-4 py-3 text-right">
-                      <span className={r.available > 0 ? 'text-green-600 font-semibold' : 'text-gray-400'}>{r.available.toLocaleString('fr-FR')}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {r.toBuy > 0 ? (
-                        <span className="font-black text-3s-red">{r.toBuy.toLocaleString('fr-FR')}</span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-green-600 font-bold text-xs"><CheckCircle className="w-3.5 h-3.5" /> OK</span>
-                      )}
+                      {r.toBuy > 0 ? <span className="font-black text-3s-red">{r.toBuy.toLocaleString('fr-FR')}</span>
+                        : <span className="inline-flex items-center gap-1 text-green-600 font-bold text-xs"><CheckCircle className="w-3.5 h-3.5" /> OK</span>}
                     </td>
                     <td className="px-4 py-3 text-right hidden lg:table-cell text-3s-black">{r.totalCost > 0 ? formatPrice(r.totalCost) : '—'}</td>
                     <td className="px-4 py-3 text-right">
                       {r.toBuy > 0 ? (
-                        <button
-                          onClick={() => validatePurchase(r)}
-                          disabled={working === r.componentId}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-3s-blue text-white rounded-lg text-xs font-bold hover:bg-3s-blue-dark transition-all disabled:opacity-50"
-                        >
-                          <ShoppingCart className="w-3.5 h-3.5" />
-                          {working === r.componentId ? '...' : 'Valider l\'achat'}
+                        <button onClick={() => validatePurchase(r)} disabled={working === r.componentId} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-3s-blue text-white rounded-lg text-xs font-bold hover:bg-3s-blue-dark transition-all disabled:opacity-50">
+                          <ShoppingCart className="w-3.5 h-3.5" />{working === r.componentId ? '...' : 'Valider l\'achat'}
                         </button>
-                      ) : (
-                        <span className="text-[11px] text-3s-gray-medium">Suffisant</span>
-                      )}
+                      ) : <span className="text-[11px] text-3s-gray-medium">Suffisant</span>}
                     </td>
                   </tr>
                 ))}

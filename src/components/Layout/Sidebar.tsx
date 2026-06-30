@@ -17,6 +17,9 @@ import {
   Building2,
   MapPinned,
   FileText,
+  ShoppingBag,
+  AlertTriangle,
+  CircuitBoard,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -54,6 +57,14 @@ const Sidebar = ({ currentPage, onPageChange, lowStockCount, isCollapsed, onTogg
         { id: 'assembly-in-progress', label: 'En cours', icon: Clock },
         { id: 'components-to-buy', label: 'Réappro. besoins', icon: ShoppingCart },
         { id: 'assembly', label: 'Historique Assembl.', icon: CheckCircle },
+      ]
+    },
+    {
+      title: 'Suivi production',
+      items: [
+        { id: 'products-sold', label: 'Produits vendus', icon: ShoppingBag },
+        { id: 'products-defective', label: 'Produits défectueux', icon: AlertTriangle },
+        { id: 'products-pcb', label: 'PCB restants', icon: CircuitBoard },
       ]
     },
     {
