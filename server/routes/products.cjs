@@ -350,6 +350,112 @@ router.post('/:id/assemble', auth, async (req, res) => {
   }
 });
 
+// POST /api/products/:id/transition - Transition d'état de production (transactionnelle)
+// body: { action: 'start'|'finish'|'sell'|'defect', quantity: number, from?: 'in_progress'|'assembled_finished' }
+//  start  : pcb_remaining      -> in_progress  (consomme les composants de la BOM)
+//  finish : in_progress        -> assembled_finished
+//  sell   : assembled_finished -> sold
+//  defect : in_progress|assembled_finished -> defective
+router.post('/:id/transition', auth, async (req, res) => {
+  const { id } = req.params;
+  const { action, from } = req.body || {};
+  const qty = parseInt(req.body && req.body.quantity, 10);
+
+  if (!['start', 'finish', 'sell', 'defect'].includes(action)) {
+    return res.status(400).json({ error: 'Action invalide' });
+  }
+  if (!Number.isInteger(qty) || qty <= 0) {
+    return res.status(400).json({ error: 'Quantité invalide (entier positif requis)' });
+  }
+
+  const httpError = (status, message) => { const e = new Error(message); e.status = status; return e; };
+
+  try {
+    await db.transaction(async (connection) => {
+      const [rows] = await connection.execute('SELECT * FROM products WHERE id = ?', [id]);
+      if (!rows || rows.length === 0) throw httpError(404, 'Produit non trouvé');
+      const p = rows[0];
+
+      if (action === 'start') {
+        if ((p.pcb_remaining || 0) < qty) throw httpError(409, `PCB restants insuffisants (${p.pcb_remaining || 0} disponible(s))`);
+
+        // Vérifier le stock de chaque composant pour la quantité demandée
+        const [comps] = await connection.execute(`
+          SELECT pc.component_id, pc.quantity, c.quantity AS stock, c.designation
+          FROM product_components pc
+          JOIN components c ON pc.component_id = c.id
+          WHERE pc.product_id = ?
+        `, [id]);
+
+        for (const cmp of comps) {
+          const needed = (Number(cmp.quantity) || 0) * qty;
+          if ((Number(cmp.stock) || 0) < needed) {
+            throw httpError(409, `Stock insuffisant : ${cmp.designation} (besoin ${needed}, dispo ${cmp.stock})`);
+          }
+        }
+
+        // Consommer les composants + enregistrer les mouvements
+        for (const cmp of comps) {
+          const needed = (Number(cmp.quantity) || 0) * qty;
+          if (needed <= 0) continue;
+          await connection.execute(
+            'UPDATE components SET quantity = quantity - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            [needed, cmp.component_id]
+          );
+          await connection.execute(
+            `INSERT INTO stock_movements (id, component_id, type, quantity, reason, user_id)
+             VALUES (?, ?, 'out', ?, ?, ?)`,
+            [randomUUID(), cmp.component_id, needed, `Assemblage démarré : ${p.name} (${qty} u.)`, req.user.userId]
+          );
+        }
+
+        await connection.execute(
+          'UPDATE products SET pcb_remaining = pcb_remaining - ?, in_progress = in_progress + ? WHERE id = ?',
+          [qty, qty, id]
+        );
+      } else if (action === 'finish') {
+        if ((p.in_progress || 0) < qty) throw httpError(409, `Modules en cours insuffisants (${p.in_progress || 0})`);
+        await connection.execute(
+          'UPDATE products SET in_progress = in_progress - ?, assembled_finished = assembled_finished + ? WHERE id = ?',
+          [qty, qty, id]
+        );
+      } else if (action === 'sell') {
+        if ((p.assembled_finished || 0) < qty) throw httpError(409, `Modules assemblés insuffisants (${p.assembled_finished || 0})`);
+        await connection.execute(
+          'UPDATE products SET assembled_finished = assembled_finished - ?, sold = sold + ? WHERE id = ?',
+          [qty, qty, id]
+        );
+      } else if (action === 'defect') {
+        const src = from === 'in_progress' ? 'in_progress' : 'assembled_finished';
+        const srcVal = src === 'in_progress' ? (p.in_progress || 0) : (p.assembled_finished || 0);
+        if (srcVal < qty) throw httpError(409, `Quantité insuffisante dans « ${src} » (${srcVal})`);
+        await connection.execute(
+          `UPDATE products SET ${src} = ${src} - ?, defective = defective + ? WHERE id = ?`,
+          [qty, qty, id]
+        );
+      }
+
+      // Garder le champ legacy quantity = stock de produits finis (assemblés)
+      await connection.execute('UPDATE products SET quantity = assembled_finished, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+    });
+
+    const updated = await db.query(`
+      SELECT id, name, description, product_number AS productNumber,
+             production_cost AS productionCost, selling_price AS sellingPrice, quantity,
+             pcb_remaining AS pcbRemaining, in_progress AS inProgress,
+             assembled_finished AS assembledFinished, sold, defective,
+             image_url AS imageUrl, updated_at AS updatedAt
+      FROM products WHERE id = ?
+    `, [id]);
+
+    res.json(updated[0]);
+  } catch (error) {
+    const status = error.status || 500;
+    if (status === 500) console.error('Erreur transition produit:', error);
+    res.status(status).json({ error: error.message || 'Erreur serveur' });
+  }
+});
+
 // DELETE /api/products/:id - Supprimer un produit
 router.delete('/:id', auth, async (req, res) => {
   try {

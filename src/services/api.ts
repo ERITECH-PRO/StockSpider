@@ -249,6 +249,19 @@ class ApiService {
     });
   }
 
+  // Transition d'état de production (start/finish/sell/defect) — backend transactionnel
+  async transitionProduct(
+    productId: string,
+    action: 'start' | 'finish' | 'sell' | 'defect',
+    quantity: number,
+    from?: 'in_progress' | 'assembled_finished'
+  ): Promise<Product> {
+    return this.request<Product>(`/products/${productId}/transition`, {
+      method: 'POST',
+      body: JSON.stringify({ action, quantity, from }),
+    });
+  }
+
   async assembleProduct(productId: string, quantity: number = 1): Promise<void> {
     await this.request(`/products/${productId}/assemble`, {
       method: 'POST',

@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, ReactNode } from 'react';
-import { Component, Product, Supplier, StockMovement, DashboardStats, AssembledProduct, ProductInAssembly, ComponentToBuy } from '../types';
+import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
+import { Component, Product, Supplier, StockMovement, DashboardStats, AssembledProduct } from '../types';
 import { apiService } from '../services/api';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
@@ -78,15 +78,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   // États des données
   const [components, setComponents] = useState<Component[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [assembledProducts, setAssembledProducts] = useState<AssembledProduct[]>(() => {
-    try {
-      const saved = localStorage.getItem('assembledProducts');
-      return saved ? JSON.parse(saved) : [];
-    } catch (error) {
-      console.error('Erreur chargement produits assemblés:', error);
-      return [];
-    }
-  });
+  // Données métier en mémoire uniquement (jamais persistées en localStorage)
+  const [assembledProducts, setAssembledProducts] = useState<AssembledProduct[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [movements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -226,50 +219,6 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       if (updates.components) {
         const componentsData = await apiService.getComponents();
         setComponents(componentsData);
-      }
-
-      // Synchroniser automatiquement les produits en cours d'assemblage si les composants ont changé
-      if (updates.components) {
-        try {
-          const saved = localStorage.getItem('productsInAssembly');
-          if (saved) {
-            const productsInAssembly: ProductInAssembly[] = JSON.parse(saved);
-            const updatedProductsInAssembly = productsInAssembly.map(productInAssembly => {
-              if (productInAssembly.productId === id) {
-                // Recalculer les composants requis avec la nouvelle liste
-                const newComponentsRequired = updatedProduct.components.map(pc => {
-                  const component = components.find(c => c.id === pc.componentId);
-                  if (!component) {
-                    throw new Error(`Composant introuvable: ${pc.componentId}`);
-                  }
-
-                  const requiredQuantity = (Number(pc.quantity) || 0) * productInAssembly.quantityToAssemble;
-                  const availableQuantity = component.quantity;
-
-                  return {
-                    componentId: component.id,
-                    componentName: component.designation,
-                    componentDesignation: component.designation,
-                    requiredQuantity,
-                    availableQuantity,
-                    isAvailable: availableQuantity >= requiredQuantity
-                  };
-                });
-
-                return {
-                  ...productInAssembly,
-                  componentsRequired: newComponentsRequired
-                };
-              }
-              return productInAssembly;
-            });
-
-            // Sauvegarder les produits mis à jour
-            localStorage.setItem('productsInAssembly', JSON.stringify(updatedProductsInAssembly));
-          }
-        } catch (error) {
-          console.error('Erreur synchronisation produits en cours:', error);
-        }
       }
 
       showSuccess('Produit mis à jour', 'Le produit a été modifié avec succès');
@@ -436,259 +385,28 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         sellingPrice: Number(product.sellingPrice) || 0
       };
 
-      setAssembledProducts(prev => {
-        const newList = [assembledProduct, ...prev];
-        try {
-          localStorage.setItem('assembledProducts', JSON.stringify(newList));
-        } catch (error) {
-          console.error('Erreur sauvegarde localStorage:', error);
-        }
-        return newList;
-      });
+      setAssembledProducts(prev => [assembledProduct, ...prev]);
 
       showSuccess('Produit assemblé', `${product.name} assemblé avec succès (${quantity} unité${quantity > 1 ? 's' : ''})`);
       return true;
     }, undefined, 'Impossible d\'assembler le produit');
   }, [products, components, syncWithIndicator, showSuccess]);
 
-  // Fonction pour regrouper les produits identiques
-  const groupProductsById = useCallback((products: ProductInAssembly[]): ProductInAssembly[] => {
-    const grouped = new Map<string, ProductInAssembly>();
-
-    products.forEach(product => {
-      const key = product.productId;
-
-      if (grouped.has(key)) {
-        const existing = grouped.get(key)!;
-
-        // Fusionner seulement si les deux sont en statut "pending"
-        if (existing.status === 'pending' && product.status === 'pending') {
-          // Cumuler les quantités
-          const newQuantity = existing.quantityToAssemble + product.quantityToAssemble;
-
-          // Cumuler les composants requis
-          const mergedComponents = existing.componentsRequired.map(existingComp => {
-            const matchingComp = product.componentsRequired.find(comp =>
-              comp.componentId === existingComp.componentId
-            );
-
-            if (matchingComp) {
-              return {
-                ...existingComp,
-                requiredQuantity: existingComp.requiredQuantity + matchingComp.requiredQuantity,
-                isAvailable: existingComp.availableQuantity >= (existingComp.requiredQuantity + matchingComp.requiredQuantity)
-              };
-            }
-
-            return existingComp;
-          });
-
-          // Créer le produit fusionné
-          const mergedProduct: ProductInAssembly = {
-            ...existing,
-            quantityToAssemble: newQuantity,
-            componentsRequired: mergedComponents,
-            createdAt: existing.createdAt, // Garder la date de création la plus ancienne
-            createdBy: existing.createdBy
-          };
-
-          grouped.set(key, mergedProduct);
-        } else {
-          // Si les statuts sont différents, garder les deux séparément
-          grouped.set(`${key}_${product.id}`, product);
-        }
-      } else {
-        grouped.set(key, product);
-      }
-    });
-
-    return Array.from(grouped.values());
-  }, []);
-
-  // Fonction pour synchroniser et agréger les composants à acheter avec le stock actuel
-  const syncComponentsToBuy = useCallback(() => {
-    try {
-      // Récupérer tous les produits en cours d'assemblage
-      const savedProducts = localStorage.getItem('productsInAssembly');
-      if (!savedProducts) return;
-
-      const productsInAssembly: ProductInAssembly[] = JSON.parse(savedProducts);
-
-      // Agréger tous les besoins par composant
-      const aggregatedNeeds = new Map<string, {
-        componentId: string;
-        componentName: string;
-        componentDesignation: string;
-        totalRequired: number;
-        unitPrice: number;
-        productNames: string[];
-      }>();
-
-      productsInAssembly.forEach(product => {
-        if (product.status === 'pending' || product.status === 'in_progress') {
-          product.componentsRequired.forEach(comp => {
-            const currentComponent = components.find(c => c.id === comp.componentId);
-            if (currentComponent) {
-              const key = comp.componentId;
-              const existing = aggregatedNeeds.get(key);
-
-              if (existing) {
-                existing.totalRequired += comp.requiredQuantity;
-                if (!existing.productNames.includes(product.productName)) {
-                  existing.productNames.push(product.productName);
-                }
-              } else {
-                aggregatedNeeds.set(key, {
-                  componentId: comp.componentId,
-                  componentName: comp.componentName,
-                  componentDesignation: comp.componentDesignation,
-                  totalRequired: comp.requiredQuantity,
-                  unitPrice: Number(currentComponent.unitPrice || 0),
-                  productNames: [product.productName]
-                });
-              }
-            }
-          });
-        }
-      });
-
-      // Calculer les quantités à acheter pour chaque composant agrégé
-      const aggregatedComponentsToBuy: ComponentToBuy[] = Array.from(aggregatedNeeds.values())
-        .map(need => {
-          const currentComponent = components.find(c => c.id === need.componentId);
-          if (!currentComponent) return null;
-
-          const availableQuantity = Number(currentComponent.quantity || 0);
-          const quantityToBuy = Math.max(0, need.totalRequired - availableQuantity);
-          const totalCost = quantityToBuy * need.unitPrice;
-
-          return {
-            id: `aggregated_${need.componentId}`,
-            componentId: need.componentId,
-            componentName: need.componentName,
-            componentDesignation: need.componentDesignation,
-            requiredQuantity: need.totalRequired,
-            availableQuantity,
-            quantityToBuy,
-            unitPrice: need.unitPrice,
-            totalCost,
-            productInAssemblyId: 'aggregated',
-            productName: need.productNames.join(', '),
-            createdAt: new Date().toISOString(),
-            status: 'pending' as const
-          };
-        })
-        .filter(comp => comp !== null && comp.quantityToBuy > 0) as ComponentToBuy[];
-
-      // Sauvegarder les composants agrégés
-      localStorage.setItem('componentsToBuy', JSON.stringify(aggregatedComponentsToBuy));
-    } catch (error) {
-      console.error('Erreur synchronisation composants à acheter:', error);
-    }
-  }, [components]);
-
-  // Ajouter un produit à l'assemblage (nouvelle logique)
+  // Démarrer l'assemblage : pcb_remaining -> in_progress (MySQL, transactionnel).
+  // Remplace l'ancienne file d'attente localStorage.
   const addProductToAssembly = useCallback(async (productId: string, quantity: number) => {
     await syncWithIndicator(async () => {
-      const product = products.find(p => p.id === productId);
-      if (!product) {
-        throw new Error('Produit non trouvé');
-      }
-
-      // Analyser les composants requis
-      const componentsRequired = product.components.map(pc => {
-        const component = components.find(c => c.id === pc.componentId);
-        if (!component) {
-          throw new Error(`Composant introuvable: ${pc.componentId}`);
-        }
-
-        const requiredQuantity = (Number(pc.quantity) || 0) * quantity;
-        const availableQuantity = component.quantity;
-
-        return {
-          componentId: component.id,
-          // Unifier l'affichage: utiliser la désignation comme nom visible
-          componentName: component.designation,
-          componentDesignation: component.designation,
-          requiredQuantity,
-          availableQuantity,
-          isAvailable: availableQuantity >= requiredQuantity
-        };
-      });
-
-      // Créer le produit en cours d'assemblage
-      const productInAssembly: ProductInAssembly = {
-        id: `assembly_${Date.now()}_${productId}`,
-        productId: product.id,
-        productName: product.name,
-        productDescription: product.description,
-        quantityToAssemble: quantity,
-        componentsRequired,
-        createdAt: new Date().toISOString(),
-        createdBy: 'current_user',
-        status: 'pending'
-      };
-
-      // Sauvegarder dans localStorage avec regroupement automatique
-      try {
-        const existing = JSON.parse(localStorage.getItem('productsInAssembly') || '[]');
-        const updated = [productInAssembly, ...existing];
-        const grouped = groupProductsById(updated);
-        localStorage.setItem('productsInAssembly', JSON.stringify(grouped));
-      } catch (error) {
-        console.error('Erreur sauvegarde produits en cours:', error);
-      }
-
-      // Ajouter les composants manquants à la liste d'achat
-      const componentsToBuy: ComponentToBuy[] = [];
-      componentsRequired.forEach(comp => {
-        if (!comp.isAvailable) {
-          const component = components.find(c => c.id === comp.componentId);
-          if (component) {
-            const quantityToBuy = comp.requiredQuantity - comp.availableQuantity;
-            componentsToBuy.push({
-              id: `buy_${Date.now()}_${comp.componentId}`,
-              componentId: comp.componentId,
-              componentName: comp.componentName,
-              componentDesignation: comp.componentDesignation,
-              requiredQuantity: comp.requiredQuantity,
-              availableQuantity: comp.availableQuantity,
-              quantityToBuy,
-              unitPrice: component.unitPrice,
-              totalCost: quantityToBuy * component.unitPrice,
-              productInAssemblyId: productInAssembly.id,
-              productName: product.name,
-              createdAt: new Date().toISOString(),
-              status: 'pending'
-            });
-          }
-        }
-      });
-
-      // Sauvegarder les composants à acheter
-      if (componentsToBuy.length > 0) {
-        try {
-          const existing = JSON.parse(localStorage.getItem('componentsToBuy') || '[]');
-          const updated = [...componentsToBuy, ...existing];
-          localStorage.setItem('componentsToBuy', JSON.stringify(updated));
-        } catch (error) {
-          console.error('Erreur sauvegarde composants à acheter:', error);
-        }
-      }
-
-      const missingCount = componentsRequired.filter(c => !c.isAvailable).length;
-      if (missingCount > 0) {
-        showSuccess('Produit ajouté à l\'assemblage', `${product.name} ajouté avec ${missingCount} composant${missingCount > 1 ? 's' : ''} manquant${missingCount > 1 ? 's' : ''}`);
-      } else {
-        showSuccess('Produit ajouté à l\'assemblage', `${product.name} prêt à être assemblé`);
-      }
-
-      // Déclencher la synchronisation des composants à acheter
-      setTimeout(() => {
-        syncComponentsToBuy();
-      }, 100);
-    }, undefined, 'Impossible d\'ajouter le produit à l\'assemblage');
-  }, [products, components, syncWithIndicator, showSuccess, syncComponentsToBuy]);
+      await apiService.transitionProduct(productId, 'start', quantity);
+      // Rafraîchir produits + composants depuis MySQL
+      const [productsData, componentsData] = await Promise.all([
+        apiService.getProducts(),
+        apiService.getComponents(),
+      ]);
+      setProducts(productsData);
+      setComponents(componentsData);
+      showSuccess('Assemblage démarré', `${quantity} unité(s) passée(s) en production`);
+    }, undefined, 'Impossible de démarrer l\'assemblage');
+  }, [syncWithIndicator, showSuccess]);
 
   // Utilitaires
   const reloadComponents = useCallback(async () => {
@@ -738,25 +456,6 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       }
     }
   }, [isAuthenticated, loadData]);
-
-  // Synchroniser automatiquement les composants à acheter quand le stock change
-  useEffect(() => {
-    if (components.length > 0) {
-      syncComponentsToBuy();
-    }
-  }, [components, syncComponentsToBuy]);
-
-  // Écouter les changements dans les produits en cours d'assemblage pour recalculer les composants à acheter
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'productsInAssembly' && components.length > 0) {
-        syncComponentsToBuy();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [components, syncComponentsToBuy]);
 
   const value = useMemo(() => ({
     // État des données
