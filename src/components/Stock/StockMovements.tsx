@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { TrendingUp, Package, ArrowUp, ArrowDown, RotateCcw, User, Clock, Search, Plus, Calendar, DollarSign, Info } from 'lucide-react';
 import { useData } from '../../hooks/useData';
 import { useToast } from '../../hooks/useToast';
 import { formatPriceCurrency } from '../../utils/priceFormatter';
-import { getImageUrl } from '../../services/api';
+import { getImageUrl, apiService } from '../../services/api';
 
 interface StockMovement {
   id: string;
@@ -20,7 +20,7 @@ interface StockMovement {
 }
 
 const StockMovements = () => {
-  const { components, updateStock } = useData();
+  const { components, reloadComponents } = useData();
   const { showSuccess, showError } = useToast();
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,21 +36,20 @@ const StockMovements = () => {
   const [movementReason, setMovementReason] = useState<string>('');
   const [movementPrice, setMovementPrice] = useState<number>(0);
 
-  useEffect(() => {
+  const loadMovements = useCallback(async () => {
     try {
-      const saved = localStorage.getItem('stockMovements');
-      if (saved) {
-        const parsedMovements = JSON.parse(saved);
-        setMovements(parsedMovements.sort((a: StockMovement, b: StockMovement) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        ));
-      }
+      const data = await apiService.getStockMovements({ limit: 200 });
+      setMovements(data as StockMovement[]);
     } catch (error) {
       console.error('Erreur chargement mouvements:', error);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    loadMovements();
+  }, [loadMovements]);
 
   const filteredMovements = useMemo(() => {
     return movements.filter(m => {
@@ -82,36 +81,25 @@ const StockMovements = () => {
     }
 
     try {
-      await updateStock(selectedComponent, movementQuantity, movementType, movementReason);
-
       const component = components.find(c => c.id === selectedComponent);
-      if (component) {
-        const newMovement: StockMovement = {
-          id: `movement_${Date.now()}`,
-          componentId: selectedComponent,
-          componentDesignation: component.designation,
-          componentName: component.name,
-          type: movementType,
-          quantity: movementQuantity,
-          unitPrice: movementPrice || component.unitPrice,
-          reason: movementReason,
-          userId: 'current_user',
-          userName: 'Administrateur',
-          createdAt: new Date().toISOString()
-        };
+      await apiService.createStockMovement({
+        componentId: selectedComponent,
+        type: movementType,
+        quantity: movementQuantity,
+        unitPrice: movementPrice || component?.unitPrice || 0,
+        reason: movementReason,
+      });
 
-        const updatedMovements = [newMovement, ...movements];
-        setMovements(updatedMovements);
-        localStorage.setItem('stockMovements', JSON.stringify(updatedMovements));
+      // Recharger depuis MySQL (mouvements + stock composants mis à jour côté serveur)
+      await Promise.all([loadMovements(), reloadComponents()]);
 
-        showSuccess('Mouvement enregistré', `Le stock de ${component.name} a été mis à jour`);
+      showSuccess('Mouvement enregistré', `Le stock de ${component?.name || 'composant'} a été mis à jour`);
 
-        // Reset
-        setSelectedComponent('');
-        setMovementQuantity(0);
-        setMovementReason('');
-        setMovementPrice(0);
-      }
+      // Reset
+      setSelectedComponent('');
+      setMovementQuantity(0);
+      setMovementReason('');
+      setMovementPrice(0);
     } catch (error) {
       console.error('Erreur mouvement:', error);
       showError('Erreur', 'Impossible d\'enregistrer le mouvement');

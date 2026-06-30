@@ -1,404 +1,348 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { ShoppingCart, CheckCircle, X, Search, Download, Package, CreditCard, AlertCircle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import {
+  ShoppingCart, CheckCircle, X, Search, Download, Package,
+  SlidersHorizontal, AlertTriangle, Layers, Coins, ListChecks
+} from 'lucide-react';
 import { useDataContext } from '../../contexts/DataContext';
-import { ComponentToBuy } from '../../types';
 import * as XLSX from 'xlsx';
 import { formatPrice } from '../../utils/priceFormatter';
-import { getImageUrl } from '../../services/api';
+
+const PLAN_KEY = 'spiderProductionPlan';
+
+interface ProcurementRow {
+  componentId: string;
+  designation: string;
+  productNumber: string;
+  category: string;
+  supplier: string;
+  unitPrice: number;
+  required: number;
+  available: number;
+  toBuy: number;
+  totalCost: number;
+}
 
 const ComponentsToBuy: React.FC = () => {
-  const { components, updateStock, reloadComponents } = useDataContext();
-  const [componentsToBuy, setComponentsToBuy] = useState<ComponentToBuy[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { components, products, updateStock, reloadComponents } = useDataContext();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [supplierFilter, setSupplierFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'to-order' | 'sufficient' | 'all'>('to-order');
+  const [showPlan, setShowPlan] = useState(false);
+  const [working, setWorking] = useState<string | null>(null);
 
-  // Fonction pour corriger les calculs des quantités à acheter et filtrer les composants avec stock suffisant
-  const fixQuantityCalculations = (components: ComponentToBuy[]): ComponentToBuy[] => {
+  // Plan de production optionnel (override). Vide => base auto = pcb_remaining + in_progress.
+  const [plan, setPlan] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem(PLAN_KEY) || '{}'); } catch { return {}; }
+  });
+
+  const persistPlan = (next: Record<string, number>) => {
+    setPlan(next);
+    localStorage.setItem(PLAN_KEY, JSON.stringify(next));
+  };
+
+  // Quantité à produire retenue pour un produit : override saisi, sinon (PCB nus + en cours).
+  const targetFor = (p: any): number => {
+    const override = plan[p.id];
+    if (override !== undefined && override !== null && override !== '') return Math.max(0, Number(override) || 0);
+    return Math.max(0, (Number(p.pcbRemaining) || 0) + (Number(p.inProgress) || 0));
+  };
+
+  // Calcul du besoin agrégé à partir des nomenclatures (product_components) et du stock réel.
+  const rows: ProcurementRow[] = useMemo(() => {
+    const need: Record<string, number> = {};
+    products.forEach((p: any) => {
+      const target = targetFor(p);
+      if (target <= 0) return;
+      (p.components || []).forEach((bl: any) => {
+        const qty = Number(bl.quantity) || 0;
+        if (!bl.componentId || qty <= 0) return;
+        need[bl.componentId] = (need[bl.componentId] || 0) + qty * target;
+      });
+    });
+
     return components
-      .map(component => {
-        const requiredQuantity = Number(component.requiredQuantity || 0);
-        const availableQuantity = Number(component.availableQuantity || 0);
-        const correctQuantityToBuy = Math.max(0, requiredQuantity - availableQuantity);
-        const correctTotalCost = correctQuantityToBuy * Number(component.unitPrice || 0);
-
+      .map((c) => {
+        const required = need[c.id] || 0;
+        const available = Number(c.quantity) || 0;
+        const toBuy = Math.max(0, required - available);
         return {
-          ...component,
-          quantityToBuy: correctQuantityToBuy,
-          totalCost: correctTotalCost
+          componentId: c.id,
+          designation: c.designation,
+          productNumber: c.productNumber,
+          category: c.category,
+          supplier: c.supplier || '',
+          unitPrice: Number(c.unitPrice) || 0,
+          required,
+          available,
+          toBuy,
+          totalCost: toBuy * (Number(c.unitPrice) || 0),
         };
       })
-      .filter(component => component.quantityToBuy > 0);
-  };
+      .filter((r) => r.required > 0)
+      .sort((a, b) => b.toBuy - a.toBuy);
+  }, [components, products, plan]);
 
-  // Fonction pour regrouper les composants identiques
-  const groupComponentsById = (components: ComponentToBuy[]): ComponentToBuy[] => {
-    const grouped = new Map<string, ComponentToBuy>();
+  const categories = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.category))).sort(),
+    [rows]
+  );
 
-    components.forEach(component => {
-      const key = component.componentId;
-
-      if (grouped.has(key)) {
-        const existing = grouped.get(key)!;
-        const newRequiredQuantity = Number(existing.requiredQuantity || 0) + Number(component.requiredQuantity || 0);
-        const availableQuantity = Number(existing.availableQuantity || 0);
-        const newQuantityToBuy = Math.max(0, newRequiredQuantity - availableQuantity);
-        const newTotalCost = newQuantityToBuy * Number(component.unitPrice || 0);
-
-        const mergedComponent: ComponentToBuy = {
-          ...existing,
-          quantityToBuy: newQuantityToBuy,
-          requiredQuantity: newRequiredQuantity,
-          totalCost: newTotalCost,
-          unitPrice: Number(component.unitPrice || 0),
-          createdAt: existing.createdAt,
-          status: existing.status === 'pending' ? 'pending' : component.status
-        };
-
-        if (newQuantityToBuy > 0) {
-          grouped.set(key, mergedComponent);
-        } else {
-          grouped.delete(key);
-        }
-      } else {
-        if (component.quantityToBuy > 0) {
-          grouped.set(key, component);
-        }
+  const filtered = useMemo(() => {
+    return rows.filter((r) => {
+      if (statusFilter === 'to-order' && r.toBuy <= 0) return false;
+      if (statusFilter === 'sufficient' && r.toBuy > 0) return false;
+      if (categoryFilter && r.category !== categoryFilter) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!r.designation.toLowerCase().includes(q) && !r.productNumber.toLowerCase().includes(q)) return false;
       }
+      return true;
     });
+  }, [rows, statusFilter, categoryFilter, searchQuery]);
 
-    return Array.from(grouped.values());
-  };
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('componentsToBuy');
-      const rawComponents = saved ? JSON.parse(saved) : [];
-      setComponentsToBuy(rawComponents);
-    } catch (error) {
-      console.error('Erreur chargement composants à acheter:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [components]);
-
-  const filteredComponents = useMemo(() => {
-    let filtered = componentsToBuy;
-
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(comp =>
-        comp.componentName.toLowerCase().includes(query) ||
-        comp.componentDesignation.toLowerCase().includes(query) ||
-        comp.componentId.toLowerCase().includes(query)
-      );
-    }
-
-    if (categoryFilter) {
-      filtered = filtered.filter(comp => {
-        const component = components.find(c => c.id === comp.componentId);
-        return component?.category === categoryFilter;
-      });
-    }
-
-    if (supplierFilter) {
-      filtered = filtered.filter(comp => {
-        const component = components.find(c => c.id === comp.componentId);
-        return component?.supplier === supplierFilter;
-      });
-    }
-
-    return filtered;
-  }, [componentsToBuy, searchQuery, categoryFilter, supplierFilter, components]);
-
-  const categories = useMemo(() => {
-    const cats = new Set<string>();
-    componentsToBuy.forEach(comp => {
-      const component = components.find(c => c.id === comp.componentId);
-      if (component?.category) {
-        cats.add(component.category);
-      }
-    });
-    return Array.from(cats).sort();
-  }, [componentsToBuy, components]);
-
-  const totalCostValue = useMemo(() => {
-    return filteredComponents.reduce((sum, comp) => sum + Number(comp.totalCost || 0), 0);
-  }, [filteredComponents]);
-
-  const saveComponentsToBuy = (newList: ComponentToBuy[]) => {
-    try {
-      const correctedList = fixQuantityCalculations(newList);
-      const groupedList = groupComponentsById(correctedList);
-      localStorage.setItem('componentsToBuy', JSON.stringify(groupedList));
-      setComponentsToBuy(groupedList);
-    } catch (error) {
-      console.error('Erreur sauvegarde composants à acheter:', error);
-    }
-  };
+  // Indicateurs (sur l'ensemble, indépendamment des filtres)
+  const kpi = useMemo(() => {
+    const toOrder = rows.filter((r) => r.toBuy > 0);
+    return {
+      refsToOrder: toOrder.length,
+      refsSufficient: rows.length - toOrder.length,
+      unitsToBuy: toOrder.reduce((s, r) => s + r.toBuy, 0),
+      totalCost: toOrder.reduce((s, r) => s + r.totalCost, 0),
+    };
+  }, [rows]);
 
   const exportToExcel = () => {
-    const exportData = filteredComponents.map(comp => {
-      const component = components.find(c => c.id === comp.componentId);
-      return {
-        'Nom du composant': comp.componentName,
-        'N° produit': component?.productNumber || '',
-        'Footprint': component?.footprint || '',
-        'Quantité requise': comp.requiredQuantity,
-        'Stock disponible': comp.availableQuantity,
-        'Quantité à acheter': comp.quantityToBuy,
-        'Fournisseur': component?.supplier || '',
-        'Prix unitaire (€)': Number(comp.unitPrice || 0),
-        'Statut': comp.status === 'pending' ? 'En attente' :
-          comp.status === 'ordered' ? 'Commandé' :
-            comp.status === 'received' ? 'Reçu' : 'Annulé'
-      };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
+    const data = filtered.map((r) => ({
+      'Désignation': r.designation,
+      'Référence': r.productNumber,
+      'Catégorie': r.category,
+      'Fournisseur': r.supplier,
+      'Besoin': r.required,
+      'Stock': r.available,
+      'À acheter': r.toBuy,
+      'Prix unitaire (€)': r.unitPrice,
+      'Coût ligne (€)': r.totalCost,
+      'Statut': r.toBuy > 0 ? 'À commander' : 'Suffisant',
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Composants à acheter');
-    XLSX.writeFile(wb, `procurement-${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(wb, `approvisionnement-${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const approveAndAddStock = async (componentToBuy: ComponentToBuy) => {
+  const validatePurchase = async (r: ProcurementRow) => {
+    if (r.toBuy <= 0) return;
+    setWorking(r.componentId);
     try {
-      const quantityToAdd = Number(componentToBuy.quantityToBuy || 0);
-      if (quantityToAdd <= 0) {
-        removeFromBuyList(componentToBuy);
-        return;
-      }
-
-      await updateStock(
-        componentToBuy.componentId,
-        quantityToAdd,
-        'in',
-        `Approvisionnement validé: ${componentToBuy.componentName}`
-      );
-
+      await updateStock(r.componentId, r.toBuy, 'in', `Approvisionnement validé : ${r.designation}`);
       await reloadComponents();
-
-      const updated = componentsToBuy.map(c =>
-        c.id === componentToBuy.id
-          ? {
-            ...c,
-            status: 'received' as const,
-            availableQuantity: Number(c.availableQuantity || 0) + quantityToAdd,
-            quantityToBuy: 0,
-            totalCost: 0
-          }
-          : c
-      );
-      saveComponentsToBuy(updated);
-    } catch (error) {
-      console.error('Erreur approvisionnement et ajout stock:', error);
+    } catch (e) {
+      console.error('Erreur validation achat:', e);
+    } finally {
+      setWorking(null);
     }
   };
 
-  const markAsReceived = (componentToBuy: ComponentToBuy) => {
-    const updated = componentsToBuy.map(c =>
-      c.id === componentToBuy.id
-        ? { ...c, status: 'received' as const }
-        : c
-    );
-    saveComponentsToBuy(updated);
-  };
+  const resetFilters = () => { setSearchQuery(''); setCategoryFilter(''); setStatusFilter('to-order'); };
 
-  const removeFromBuyList = (componentToBuy: ComponentToBuy) => {
-    const updated = componentsToBuy.filter(c => c.id !== componentToBuy.id);
-    saveComponentsToBuy(updated);
-  };
-
-  const getStatusInfo = (status: string) => {
-    switch (status) {
-      case 'pending': return { color: 'text-orange-600 bg-orange-50 border-orange-100', label: 'En attente' };
-      case 'ordered': return { color: 'text-blue-600 bg-blue-50 border-blue-100', label: 'Commandé' };
-      case 'received': return { color: 'text-green-600 bg-green-50 border-green-100', label: 'Reçu' };
-      case 'cancelled': return { color: 'text-red-600 bg-red-50 border-red-100', label: 'Annulé' };
-      default: return { color: 'text-gray-600 bg-gray-50 border-gray-100', label: 'Inconnu' };
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <div className="animate-spin rounded-full h-10 w-10 border-4 border-3s-blue border-t-transparent"></div>
-        <p className="text-3s-gray-medium font-inter animate-pulse">Analyse des besoins en cours...</p>
-      </div>
-    );
-  }
+  const catLabel = (c: string) => c.charAt(0).toUpperCase() + c.slice(1);
 
   return (
-    <div className="p-6 space-y-8 bg-3s-gray-light min-h-full font-inter">
-      {/* Visual Header & Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <h1 className="text-2xl font-bold text-3s-black">Besoins d'approvisionnement</h1>
-          <p className="text-3s-gray-medium mt-1">Liste des composants manquants pour l'assemblage des produits en cours.</p>
-        </div>
+    <div className="p-6 space-y-6 bg-3s-gray-light min-h-full font-inter">
+      {/* En-tête */}
+      <div>
+        <h1 className="text-2xl font-bold text-3s-black">Composants à acheter</h1>
+        <p className="text-3s-gray-medium mt-1 text-sm">
+          Calculé automatiquement depuis les nomenclatures et le stock réel — base : modules non finis (PCB + en cours), ajustable via un plan de production.
+        </p>
+      </div>
 
-        <div className="flex gap-4">
-          <div className="flex-1 card-3s p-4 flex flex-col justify-center border-l-4 border-l-3s-blue relative overflow-hidden">
-            <ShoppingCart className="absolute -right-2 -bottom-2 w-12 h-12 text-blue-50 opacity-50" />
-            <span className="text-[10px] text-3s-gray-medium uppercase font-bold tracking-wider">Composants</span>
-            <span className="text-2xl font-black text-3s-black">{filteredComponents.length}</span>
+      {/* KPI */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="card-3s p-4 border-l-4 border-l-3s-red">
+          <div className="flex items-center gap-2 text-3s-gray-medium text-[11px] font-bold uppercase tracking-wider">
+            <AlertTriangle className="w-3.5 h-3.5" /> Réf. à commander
           </div>
-          <div className="flex-1 card-3s p-4 flex flex-col justify-center border-l-4 border-l-green-500 relative overflow-hidden">
-            <CreditCard className="absolute -right-2 -bottom-2 w-12 h-12 text-green-50 opacity-50" />
-            <span className="text-[10px] text-3s-gray-medium uppercase font-bold tracking-wider">Coût Estimé</span>
-            <span className="text-xl font-black text-green-600">{formatPrice(totalCostValue)}</span>
+          <div className="text-3xl font-black text-3s-red mt-1">{kpi.refsToOrder}</div>
+        </div>
+        <div className="card-3s p-4 border-l-4 border-l-3s-blue">
+          <div className="flex items-center gap-2 text-3s-gray-medium text-[11px] font-bold uppercase tracking-wider">
+            <Layers className="w-3.5 h-3.5" /> Pièces à acheter
           </div>
+          <div className="text-3xl font-black text-3s-black mt-1">{kpi.unitsToBuy.toLocaleString('fr-FR')}</div>
+        </div>
+        <div className="card-3s p-4 border-l-4 border-l-green-500">
+          <div className="flex items-center gap-2 text-3s-gray-medium text-[11px] font-bold uppercase tracking-wider">
+            <Coins className="w-3.5 h-3.5" /> Coût estimé
+          </div>
+          <div className="text-2xl font-black text-green-600 mt-1">{formatPrice(kpi.totalCost)}</div>
+        </div>
+        <div className="card-3s p-4 border-l-4 border-l-gray-300">
+          <div className="flex items-center gap-2 text-3s-gray-medium text-[11px] font-bold uppercase tracking-wider">
+            <ListChecks className="w-3.5 h-3.5" /> Réf. suffisantes
+          </div>
+          <div className="text-3xl font-black text-3s-black mt-1">{kpi.refsSufficient}</div>
         </div>
       </div>
 
-      {/* Control Bar Overlay */}
-      <div className="sticky top-0 z-10 card-3s p-3 flex flex-col md:flex-row gap-4 bg-white/80 backdrop-blur-md border border-gray-100 items-center justify-between">
-        <div className="flex flex-1 gap-3 w-full">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Rechercher par nom ou référence..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-3s-blue focus:bg-white transition-all outline-none"
-            />
+      {/* Plan de production (optionnel) */}
+      <div className="card-3s overflow-hidden">
+        <button
+          onClick={() => setShowPlan((s) => !s)}
+          className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 transition-colors"
+        >
+          <span className="flex items-center gap-2 font-bold text-3s-black text-sm">
+            <SlidersHorizontal className="w-4 h-4 text-3s-blue" /> Plan de production (optionnel)
+          </span>
+          <span className="text-xs text-3s-gray-medium">
+            {showPlan ? 'Masquer' : 'Afficher'} · vide = auto (PCB + en cours)
+          </span>
+        </button>
+        {showPlan && (
+          <div className="border-t border-gray-100 p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {products.map((p: any) => {
+              const auto = (Number(p.pcbRemaining) || 0) + (Number(p.inProgress) || 0);
+              const overridden = plan[p.id] !== undefined && plan[p.id] !== null && (plan[p.id] as any) !== '';
+              return (
+                <div key={p.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-3s-black truncate">{p.name}</p>
+                    <p className="text-[10px] text-3s-gray-medium">Auto : {auto} (PCB {p.pcbRemaining || 0} + en cours {p.inProgress || 0})</p>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    value={overridden ? (plan[p.id] as number) : ''}
+                    placeholder={String(auto)}
+                    onChange={(e) => {
+                      const next = { ...plan };
+                      if (e.target.value === '') delete next[p.id];
+                      else next[p.id] = Math.max(0, parseInt(e.target.value) || 0);
+                      persistPlan(next);
+                    }}
+                    className={`w-20 px-2 py-1.5 text-sm text-right rounded-lg border outline-none focus:ring-2 focus:ring-3s-blue ${overridden ? 'border-3s-blue bg-blue-50 font-bold' : 'border-gray-200 bg-white'}`}
+                  />
+                </div>
+              );
+            })}
+            {Object.keys(plan).length > 0 && (
+              <button
+                onClick={() => persistPlan({})}
+                className="text-xs text-3s-red font-bold hover:underline justify-self-start"
+              >
+                Réinitialiser le plan (revenir à l'auto)
+              </button>
+            )}
           </div>
+        )}
+      </div>
 
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="hidden md:block px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-3s-blue"
-          >
-            <option value="">Toutes les catégories</option>
-            {categories.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
-          </select>
-
-          <button
-            onClick={() => { setSearchQuery(''); setCategoryFilter(''); setSupplierFilter(''); }}
-            className="p-2 text-gray-400 hover:text-3s-red transition-colors"
-            title="Réinitialiser"
-          >
-            <X className="w-5 h-5" />
-          </button>
+      {/* Barre de contrôle */}
+      <div className="card-3s p-3 flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <input
+            type="text"
+            placeholder="Rechercher par désignation ou référence..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-3s-blue focus:bg-white outline-none"
+          />
         </div>
-
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as any)}
+          className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-3s-blue"
+        >
+          <option value="to-order">À commander</option>
+          <option value="sufficient">Suffisant</option>
+          <option value="all">Tous</option>
+        </select>
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-3s-blue"
+        >
+          <option value="">Toutes catégories</option>
+          {categories.map((c) => <option key={c} value={c}>{catLabel(c)}</option>)}
+        </select>
+        <button onClick={resetFilters} className="p-2 text-gray-400 hover:text-3s-red transition-colors" title="Réinitialiser">
+          <X className="w-5 h-5" />
+        </button>
         <button
           onClick={exportToExcel}
-          className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-2 bg-3s-black text-white rounded-lg hover:bg-gray-800 transition-all font-medium shadow-3s"
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-3s-black text-white rounded-lg hover:bg-gray-800 transition-all text-sm font-medium"
         >
-          <Download className="w-4 h-4" />
-          <span>Exporter (XLSX)</span>
+          <Download className="w-4 h-4" /> Exporter
         </button>
       </div>
 
-      {/* Procurement Grid */}
-      {filteredComponents.length === 0 ? (
+      {/* Tableau ERP */}
+      {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
           <Package className="w-16 h-16 text-gray-200 mb-4" />
-          <h3 className="text-lg font-semibold text-3s-black">Stock parfaitement équilibré</h3>
-          <p className="text-3s-gray-medium">Aucun composant manquant détecté pour vos assemblages en cours.</p>
+          <h3 className="text-lg font-semibold text-3s-black">Aucun composant à afficher</h3>
+          <p className="text-3s-gray-medium text-sm">
+            {statusFilter === 'to-order' ? 'Aucun manque détecté pour le besoin actuel.' : 'Aucun résultat pour ces filtres.'}
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-          {filteredComponents.map((compToBuy) => {
-            const component = components.find(c => c.id === compToBuy.componentId);
-            const status = getStatusInfo(compToBuy.status);
-
-            return (
-              <div key={compToBuy.id} className="card-3s flex flex-col group hover:scale-[1.02] transform transition-all cursor-default">
-                {/* Image & Status Header */}
-                <div className="p-4 flex gap-4 bg-gradient-to-br from-gray-50 to-white rounded-t-xl border-b border-gray-100">
-                  <div className="w-20 h-20 bg-white rounded-lg shadow-sm border border-gray-100 p-1 shrink-0 flex items-center justify-center overflow-hidden">
-                    {component?.imageUrl ? (
-                      <img src={getImageUrl(component.imageUrl)} alt="" className="w-full h-full object-contain" />
-                    ) : (
-                      <Package className="w-8 h-8 text-gray-200" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start mb-1">
-                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${status.color}`}>
-                        {status.label}
-                      </span>
-                      <span className="text-[10px] font-bold text-3s-gray-medium">{component?.supplier || 'N/A'}</span>
-                    </div>
-                    <h3 className="font-bold text-3s-black truncate leading-tight mb-1">{compToBuy.componentName}</h3>
-                    <p className="text-[10px] text-3s-gray-medium font-mono uppercase truncate">{component?.productNumber || compToBuy.componentId}</p>
-                  </div>
-                </div>
-
-                {/* Metrics Section */}
-                <div className="p-4 grid grid-cols-2 gap-4 border-b border-gray-50 bg-white">
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-3s-gray-medium uppercase font-bold tracking-tighter">Besoins Totaux</span>
-                    <div className="flex items-center gap-2 font-black text-3s-black text-lg">
-                      <AlertCircle className="w-4 h-4 text-orange-400" />
-                      {compToBuy.requiredQuantity}
-                    </div>
-                  </div>
-                  <div className="space-y-1 text-right">
-                    <span className="text-[10px] text-3s-gray-medium uppercase font-bold tracking-tighter">Disponibilité</span>
-                    <div className={`text-lg font-black ${compToBuy.availableQuantity > 0 ? 'text-green-600' : 'text-3s-red'}`}>
-                      {compToBuy.availableQuantity} <span className="text-xs text-gray-400 font-medium">/ {compToBuy.requiredQuantity}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Final Step Action */}
-                <div className="mt-auto p-4 bg-gray-50/50 rounded-b-xl space-y-3">
-                  <div className="flex justify-between items-center bg-white p-2 rounded-lg border border-gray-100 shadow-sm">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] text-3s-gray-medium uppercase font-black">À Commander</span>
-                      <span className="text-base font-black text-3s-red">{compToBuy.quantityToBuy}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[9px] text-3s-gray-medium uppercase font-black">Coût Ligne</span>
-                      <span className="text-sm font-black text-3s-black block">{formatPrice(compToBuy.totalCost)}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    {compToBuy.status === 'pending' && (
-                      <>
+        <div className="card-3s overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-3s-gray-medium text-[11px] uppercase tracking-wider">
+                  <th className="text-left font-bold px-4 py-3">Composant</th>
+                  <th className="text-left font-bold px-4 py-3 hidden md:table-cell">Catégorie</th>
+                  <th className="text-right font-bold px-4 py-3">Besoin</th>
+                  <th className="text-right font-bold px-4 py-3">Stock</th>
+                  <th className="text-right font-bold px-4 py-3">À acheter</th>
+                  <th className="text-right font-bold px-4 py-3 hidden lg:table-cell">Coût</th>
+                  <th className="text-right font-bold px-4 py-3">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map((r) => (
+                  <tr key={r.componentId} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="font-bold text-3s-black">{r.designation}</div>
+                      <div className="text-[11px] text-3s-gray-medium font-mono">{r.productNumber}</div>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-bold capitalize">{r.category}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-3s-black">{r.required.toLocaleString('fr-FR')}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={r.available > 0 ? 'text-green-600 font-semibold' : 'text-gray-400'}>{r.available.toLocaleString('fr-FR')}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {r.toBuy > 0 ? (
+                        <span className="font-black text-3s-red">{r.toBuy.toLocaleString('fr-FR')}</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-green-600 font-bold text-xs"><CheckCircle className="w-3.5 h-3.5" /> OK</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right hidden lg:table-cell text-3s-black">{r.totalCost > 0 ? formatPrice(r.totalCost) : '—'}</td>
+                    <td className="px-4 py-3 text-right">
+                      {r.toBuy > 0 ? (
                         <button
-                          onClick={() => approveAndAddStock(compToBuy)}
-                          className="flex-1 py-2.5 bg-3s-blue text-white rounded-lg text-xs font-bold hover:bg-3s-blue-dark shadow-3s transition-all flex items-center justify-center gap-2"
+                          onClick={() => validatePurchase(r)}
+                          disabled={working === r.componentId}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-3s-blue text-white rounded-lg text-xs font-bold hover:bg-3s-blue-dark transition-all disabled:opacity-50"
                         >
-                          <CheckCircle className="w-4 h-4" />
-                          <span>Valider l'achat</span>
+                          <ShoppingCart className="w-3.5 h-3.5" />
+                          {working === r.componentId ? '...' : 'Valider l\'achat'}
                         </button>
-                        <button
-                          onClick={() => removeFromBuyList(compToBuy)}
-                          className="p-2.5 text-gray-400 hover:text-3s-red hover:bg-red-50 rounded-lg transition-colors border border-gray-200"
-                          title="Supprimer"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </>
-                    )}
-
-                    {compToBuy.status === 'ordered' && (
-                      <button
-                        onClick={() => markAsReceived(compToBuy)}
-                        className="flex-1 py-2.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 shadow-3s transition-all flex items-center justify-center gap-2"
-                      >
-                        <Package className="w-4 h-4" />
-                        <span>Signaler comme reçu</span>
-                      </button>
-                    )}
-
-                    {compToBuy.status === 'received' && (
-                      <div className="w-full text-center py-2 text-xs font-bold text-green-600 bg-green-50 rounded-lg border border-green-200">
-                        Traitement terminé
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                      ) : (
+                        <span className="text-[11px] text-3s-gray-medium">Suffisant</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

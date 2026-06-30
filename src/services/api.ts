@@ -202,6 +202,23 @@ class ApiService {
     });
   }
 
+  // Mouvements de stock (table MySQL stock_movements)
+  async getStockMovements(params: { limit?: number; componentId?: string; type?: string } = {}): Promise<any[]> {
+    const qs = new URLSearchParams();
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.componentId) qs.set('componentId', params.componentId);
+    if (params.type && params.type !== 'all') qs.set('type', params.type);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return this.request<any[]>(`/stock/movements${suffix}`);
+  }
+
+  async createStockMovement(payload: { componentId: string; type: 'in' | 'out' | 'adjustment'; quantity: number; unitPrice?: number; reason: string }): Promise<void> {
+    await this.request(`/stock/movements`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   // Produits
   async getProducts(): Promise<Product[]> {
     return this.request<Product[]>('/products');
